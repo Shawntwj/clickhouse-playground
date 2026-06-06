@@ -1,0 +1,208 @@
+{
+  "__inputs": [],
+  "__requires": [
+    { "type": "grafana", "id": "grafana", "name": "Grafana", "version": "11.1.0" },
+    { "type": "datasource", "id": "grafana-clickhouse-datasource", "name": "ClickHouse", "version": "1.0.0" },
+    { "type": "panel", "id": "timeseries", "name": "Time series", "version": "" },
+    { "type": "panel", "id": "stat", "name": "Stat", "version": "" },
+    { "type": "panel", "id": "table", "name": "Table", "version": "" },
+    { "type": "panel", "id": "bargauge", "name": "Bar gauge", "version": "" }
+  ],
+  "description": "Monitor FINAL vs dictionary query performance from system.query_log — live feedback for the exercises",
+  "editable": true,
+  "panels": [
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse_uid" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "lineWidth": 2 },
+          "unit": "ms"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 0 },
+      "id": 1,
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "multi" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse_uid" },
+          "rawSql": "SELECT\n  toStartOfMinute(event_time) AS time,\n  if(query LIKE '%FINAL%', 'FINAL query', 'non-FINAL query') AS query_type,\n  avg(query_duration_ms) AS avg_duration_ms\nFROM system.query_log\nWHERE\n  event_time >= $__fromTime\n  AND event_time <= $__toTime\n  AND type = 'QueryFinish'\n  AND query NOT LIKE '%system.%'\nGROUP BY time, query_type\nORDER BY time ASC",
+          "refId": "A",
+          "format": "time_series"
+        }
+      ],
+      "title": "Avg Query Duration — FINAL vs non-FINAL",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse_uid" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 100 }, { "color": "red", "value": 500 }] }, "unit": "ms" },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 8 },
+      "id": 2,
+      "options": { "reduceOptions": { "calcs": ["mean"] }, "colorMode": "background", "textMode": "auto" },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse_uid" },
+          "rawSql": "SELECT avg(query_duration_ms) AS avg_ms\nFROM system.query_log\nWHERE event_date = today() AND type = 'QueryFinish' AND query LIKE '%FINAL%' AND query NOT LIKE '%system.%'",
+          "refId": "A",
+          "format": "table"
+        }
+      ],
+      "title": "Avg FINAL Query (ms)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse_uid" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 50 }, { "color": "red", "value": 200 }] }, "unit": "ms" },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 8 },
+      "id": 3,
+      "options": { "reduceOptions": { "calcs": ["mean"] }, "colorMode": "background", "textMode": "auto" },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse_uid" },
+          "rawSql": "SELECT avg(query_duration_ms) AS avg_ms\nFROM system.query_log\nWHERE event_date = today() AND type = 'QueryFinish' AND query LIKE '%dictGet%' AND query NOT LIKE '%system.%'",
+          "refId": "A",
+          "format": "table"
+        }
+      ],
+      "title": "Avg dictGet Query (ms)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse_uid" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "steps": [{ "color": "blue", "value": null }] } },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 8 },
+      "id": 4,
+      "options": { "reduceOptions": { "calcs": ["sum"] }, "colorMode": "background", "textMode": "auto" },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse_uid" },
+          "rawSql": "SELECT countIf(query LIKE '%FINAL%') AS final_queries\nFROM system.query_log\nWHERE event_date = today() AND type = 'QueryFinish' AND query NOT LIKE '%system.%'",
+          "refId": "A",
+          "format": "table"
+        }
+      ],
+      "title": "FINAL Queries Today",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse_uid" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "steps": [{ "color": "green", "value": null }] } },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 8 },
+      "id": 5,
+      "options": { "reduceOptions": { "calcs": ["sum"] }, "colorMode": "background", "textMode": "auto" },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse_uid" },
+          "rawSql": "SELECT countIf(query LIKE '%dictGet%') AS dict_queries\nFROM system.query_log\nWHERE event_date = today() AND type = 'QueryFinish' AND query NOT LIKE '%system.%'",
+          "refId": "A",
+          "format": "table"
+        }
+      ],
+      "title": "dictGet Queries Today",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse_uid" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" }, "custom": { "lineWidth": 1 }, "unit": "decbytes" },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+      "id": 6,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse_uid" },
+          "rawSql": "SELECT\n  toStartOfMinute(event_time) AS time,\n  if(query LIKE '%FINAL%', 'FINAL', 'dictGet') AS approach,\n  avg(memory_usage) AS avg_memory_bytes\nFROM system.query_log\nWHERE\n  event_time >= $__fromTime AND event_time <= $__toTime\n  AND type = 'QueryFinish'\n  AND (query LIKE '%FINAL%' OR query LIKE '%dictGet%')\n  AND query NOT LIKE '%system.%'\nGROUP BY time, approach\nORDER BY time ASC",
+          "refId": "A",
+          "format": "time_series"
+        }
+      ],
+      "title": "Memory Usage — FINAL vs dictGet",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse_uid" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" }, "unit": "decbytes" },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+      "id": 7,
+      "options": { "displayMode": "gradient", "orientation": "horizontal", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse_uid" },
+          "rawSql": "SELECT\n  concat(database, '.', name) AS dictionary,\n  bytes_allocated            AS memory_bytes\nFROM system.dictionaries\nORDER BY bytes_allocated DESC",
+          "refId": "A",
+          "format": "table"
+        }
+      ],
+      "title": "Dictionary Memory Usage",
+      "type": "bargauge"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse_uid" },
+      "fieldConfig": { "defaults": { "unit": "ms" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 20 },
+      "id": 8,
+      "options": { "showHeader": true, "sortBy": [{ "displayName": "avg_ms", "desc": true }] },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse_uid" },
+          "rawSql": "SELECT\n  left(query, 80)                                           AS query_preview,\n  if(query LIKE '%FINAL%', 'FINAL', if(query LIKE '%dictGet%', 'dictGet', 'other')) AS approach,\n  count()                                                   AS runs,\n  round(avg(query_duration_ms), 1)                          AS avg_ms,\n  round(max(query_duration_ms), 1)                          AS max_ms,\n  round(avg(memory_usage) / 1e6, 2)                         AS avg_mem_mb,\n  formatReadableQuantity(avg(read_rows))                    AS avg_rows_read\nFROM system.query_log\nWHERE\n  event_date >= today()\n  AND type = 'QueryFinish'\n  AND query NOT LIKE '%system.%'\n  AND query NOT LIKE '%SHOW%'\n  AND query NOT LIKE '%SELECT 1%'\nGROUP BY query_preview, approach\nORDER BY avg_ms DESC\nLIMIT 25",
+          "refId": "A",
+          "format": "table"
+        }
+      ],
+      "title": "Slowest Queries — Exercise Runs",
+      "type": "table"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse_uid" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" }, "custom": { "lineWidth": 1 } },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 28 },
+      "id": 9,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse_uid" },
+          "rawSql": "SELECT\n  toStartOfMinute(event_time)    AS time,\n  concat(database, '.', name)    AS dict_name,\n  bytes_allocated / 1e3          AS kb_in_memory\nFROM system.dictionaries\nCROSS JOIN (\n  SELECT toStartOfMinute(now()) AS event_time\n  FROM numbers(1)\n) t\nORDER BY time ASC",
+          "refId": "A",
+          "format": "time_series"
+        }
+      ],
+      "title": "Dictionary Load Status Over Time",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "15s",
+  "schemaVersion": 39,
+  "tags": ["clickhouse", "performance", "exercises"],
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "timezone": "utc",
+  "title": "Query Performance",
+  "uid": "query-performance",
+  "version": 1
+}
