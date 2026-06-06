@@ -16,12 +16,15 @@ Local replica of a production ClickHouse Cloud v26.2.1 cluster, with Grafana for
 # Start everything
 docker compose up -d
 
-# Wait for ClickHouse to be healthy, then seed data
-clickhouse-client -h localhost -u admin --password admin < scripts/seed_data.sql
+# Wait for ClickHouse to be healthy (~30s), then seed data
+docker exec -i clickhouse clickhouse-client -u admin --password admin --multiquery < scripts/seed_data.sql
 
 # Open Grafana → Energy Dispatch dashboard is pre-provisioned
 open http://localhost:3000
 ```
+
+> **Tip:** always run queries via `docker exec -i clickhouse clickhouse-client -u admin --password admin`  
+> or use the browser UI at http://localhost:8123/play (admin / admin).
 
 ## Project structure
 

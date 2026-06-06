@@ -83,7 +83,7 @@ SELECT
     toInt32(rand() % 200)                                                    AS id,
     arrayElement(['PRICE','DEMAND','GENERATION','LOAD'], (rand() % 4) + 1)  AS tag,
     now64(3) - toIntervalSecond(number * 60)                                 AS value_datetime_utc,
-    toDecimal128(randUniform(-1000, 15000), 6)                               AS value_decimal,
+    toDecimal128(randUniform(-1000.0, 15000.0), 6)                           AS value_decimal,
     NULL                                                                     AS value_string,
     now64(3)                                                                 AS last_modified_utc,
     toUInt8(1)                                                               AS version
@@ -98,7 +98,7 @@ SELECT
     toDecimal128(randUniform(1000, 9000), 6)                                AS availablegeneration,
     toDecimal128(randUniform(500, 2000), 6)                                 AS availableload,
     toDecimal128(randUniform(800, 7000), 6)                                 AS clearedgeneration,
-    toDecimal128(randUniform(-1000, 15000), 6)                              AS rrp,
+    toDecimal128(randUniform(-1000.0, 15000.0), 6)                          AS rrp,
     toDecimal128(randUniform(0, 1000), 6)                                   AS raise6secrrp,
     toDecimal128(randUniform(0, 1000), 6)                                   AS raise60secrrp,
     toDecimal128(randUniform(0, 1000), 6)                                   AS raise5minrrp,
