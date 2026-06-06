@@ -1,0 +1,15 @@
+# Docker volumes (never commit data)
+clickhouse_data/
+grafana_data/
+
+# Local env overrides
+.env
+*.local
+
+# macOS
+.DS_Store
+
+# Editor
+.vscode/
+.idea/
+*.swp

@@ -1,0 +1,161 @@
+{
+  "__inputs": [],
+  "__elements": {},
+  "__requires": [
+    { "type": "grafana", "id": "grafana", "name": "Grafana", "version": "11.1.0" },
+    { "type": "datasource", "id": "grafana-clickhouse-datasource", "name": "ClickHouse", "version": "1.0.0" },
+    { "type": "panel", "id": "timeseries", "name": "Time series", "version": "" },
+    { "type": "panel", "id": "stat", "name": "Stat", "version": "" },
+    { "type": "panel", "id": "table", "name": "Table", "version": "" }
+  ],
+  "annotations": { "list": [] },
+  "description": "Energy dispatch overview — mirrors the read.* FINAL layer from production",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse_uid" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" }, "custom": { "lineWidth": 1 } },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 0 },
+      "id": 1,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse_uid" },
+          "rawSql": "SELECT\n  toStartOfHour(interval_utc) AS time,\n  region,\n  avg(value_mw) AS avg_dispatch_mw\nFROM read.hkpug5ii1l25n\nWHERE interval_utc >= $__fromTime AND interval_utc <= $__toTime\nGROUP BY time, region\nORDER BY time ASC",
+          "refId": "A",
+          "format": "time_series"
+        }
+      ],
+      "title": "Average Dispatch MW by Region",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse_uid" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" } }, "overrides": [] },
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 8 },
+      "id": 2,
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "auto", "textMode": "auto", "colorMode": "background" },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse_uid" },
+          "rawSql": "SELECT count() AS total_rows FROM read.hkpug5ii1l25n",
+          "refId": "A",
+          "format": "table"
+        }
+      ],
+      "title": "Total Dispatch Rows",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse_uid" },
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 8 },
+      "id": 3,
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "auto", "textMode": "auto", "colorMode": "background" },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse_uid" },
+          "rawSql": "SELECT count() AS total_rows FROM read.hkaggineq5gd7",
+          "refId": "A",
+          "format": "table"
+        }
+      ],
+      "title": "Total Tag Rows",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse_uid" },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+      "id": 4,
+      "options": { "showHeader": true },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse_uid" },
+          "rawSql": "SELECT\n  region,\n  fuel_type,\n  round(avg(value_mw), 2)  AS avg_mw,\n  round(max(value_mw), 2)  AS peak_mw,\n  count()                  AS intervals\nFROM read.hkpug5ii1l25n\nWHERE interval_utc >= $__fromTime AND interval_utc <= $__toTime\nGROUP BY region, fuel_type\nORDER BY avg_mw DESC",
+          "refId": "A",
+          "format": "table"
+        }
+      ],
+      "title": "Dispatch by Region & Fuel Type",
+      "type": "table"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse_uid" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" }, "custom": { "lineWidth": 1 } },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+      "id": 5,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse_uid" },
+          "rawSql": "SELECT\n  toStartOfHour(value_datetime_utc) AS time,\n  tag,\n  avg(value_decimal) AS avg_value\nFROM read.hkaggineq5gd7\nWHERE value_datetime_utc >= $__fromTime AND value_datetime_utc <= $__toTime\nGROUP BY time, tag\nORDER BY time ASC",
+          "refId": "A",
+          "format": "time_series"
+        }
+      ],
+      "title": "Tag Values Over Time",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse_uid" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" }, "custom": { "lineWidth": 1 } },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 20 },
+      "id": 6,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        {
+          "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse_uid" },
+          "rawSql": "SELECT\n  toStartOfHour(solution_datetime_utc) AS time,\n  region_id AS region,\n  avg(rrp)          AS avg_rrp,\n  avg(totaldemand)  AS avg_demand_mw\nFROM read.fvow3t4chjeqj\nWHERE solution_datetime_utc >= $__fromTime AND solution_datetime_utc <= $__toTime\nGROUP BY time, region_id\nORDER BY time ASC",
+          "refId": "A",
+          "format": "time_series"
+        }
+      ],
+      "title": "Regional Reference Price (RRP) & Demand",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["clickhouse", "energy", "dispatch"],
+  "templating": {
+    "list": [
+      {
+        "current": {},
+        "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse_uid" },
+        "definition": "SELECT DISTINCT region FROM read.hkpug5ii1l25n ORDER BY region",
+        "hide": 0,
+        "includeAll": true,
+        "multi": true,
+        "name": "region",
+        "options": [],
+        "query": "SELECT DISTINCT region FROM read.hkpug5ii1l25n ORDER BY region",
+        "refresh": 1,
+        "type": "query",
+        "label": "Region"
+      }
+    ]
+  },
+  "time": { "from": "now-7d", "to": "now" },
+  "timepicker": {},
+  "timezone": "utc",
+  "title": "Energy Dispatch",
+  "uid": "energy-dispatch",
+  "version": 1
+}
