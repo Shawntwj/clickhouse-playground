@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>ClickHouse FINAL — Visual Guide</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: system-ui, sans-serif; background: #0f1117; color: #e2e8f0; padding: 32px; max-width: 1100px; margin: 0 auto; }
+
+h1 { font-size: 1.5rem; color: #f8fafc; margin-bottom: 6px; }
+h2 { font-size: 1.1rem; color: #94a3b8; font-weight: 500; margin-bottom: 24px; }
+h3 { font-size: 0.95rem; color: #f8fafc; margin-bottom: 12px; letter-spacing: 0.03em; }
+
+section { margin-bottom: 56px; }
+
+.callout {
+  background: #1e293b;
+  border-left: 3px solid #f59e0b;
+  padding: 12px 16px;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  color: #fcd34d;
+  line-height: 1.6;
+  margin-top: 16px;
+}
+.callout.green  { border-color: #22c55e; color: #86efac; background: #052e16; }
+.callout.purple { border-color: #a855f7; color: #d8b4fe; background: #1a0533; }
+.callout.red    { border-color: #ef4444; color: #fca5a5; background: #1f0909; }
+
+/* ── TABLE STYLES ── */
+.tbl-wrap { overflow-x: auto; margin: 8px 0; }
+table { border-collapse: collapse; font-size: 0.82rem; font-family: monospace; width: 100%; }
+th { background: #1e293b; color: #94a3b8; padding: 6px 12px; text-align: left; font-size: 0.75rem; letter-spacing: 0.05em; }
+td { padding: 5px 12px; border-bottom: 1px solid #1e293b; white-space: nowrap; }
+tr.dup  { background: #3b1205; }
+tr.win  { background: #052e16; }
+tr.dead { background: #1f0909; opacity: 0.55; text-decoration: line-through; }
+tr.dict-row { background: #1a0533; }
+
+.row-label {
+  display: inline-block;
+  font-size: 0.68rem;
+  border-radius: 3px;
+  padding: 1px 5px;
+  margin-left: 4px;
+  font-family: system-ui;
+}
+.dup-label  { background: #7c2d12; color: #fed7aa; }
+.win-label  { background: #14532d; color: #bbf7d0; }
+.dead-label { background: #450a0a; color: #fca5a5; }
+
+/* ── PART BOXES ── */
+.parts-row { display: flex; gap: 16px; flex-wrap: wrap; margin: 12px 0; }
+.part {
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  padding: 12px;
+  flex: 1;
+  min-width: 260px;
+}
+.part-title {
+  font-size: 0.72rem;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 8px;
+}
+
+/* ── PIPELINE ── */
+.pipe { display: flex; flex-direction: column; align-items: center; gap: 0; }
+.pipe-box {
+  border-radius: 8px;
+  padding: 10px 20px;
+  text-align: center;
+  width: 100%;
+  max-width: 700px;
+  font-size: 0.85rem;
+}
+.pipe-box .name { font-weight: 700; font-size: 0.95rem; }
+.pipe-box .sub  { color: #94a3b8; font-size: 0.78rem; margin-top: 3px; }
+.pipe-arrow { width: 2px; height: 24px; background: #334155; position: relative; }
+.pipe-arrow::after {
+  content:''; position:absolute; bottom:-1px; left:50%;
+  transform:translateX(-50%);
+  border-left:5px solid transparent; border-right:5px solid transparent;
+  border-top:7px solid #334155;
+}
+.p-disk   { background:#1e3a5f; border:1px solid #2563eb; }
+.p-filter { background:#1f3b2e; border:1px solid #16a34a; }
+.p-dedup  { background:#3b1f5e; border:1px solid #7c3aed; }
+.p-agg    { background:#3b2a1f; border:1px solid #ea580c; }
+.p-dict   { background:#1a0533; border:1px solid #a855f7; }
+
+/* ── VIEW CHAIN ── */
+.chain { display: flex; align-items: center; gap: 0; flex-wrap: wrap; margin: 16px 0; }
+.chain-box {
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  padding: 10px 16px;
+  font-size: 0.82rem;
+  text-align: center;
+  min-width: 140px;
+}
+.chain-box code { display: block; font-size: 0.78rem; color: #7c3aed; margin-top: 3px; }
+.chain-box .eng { font-size: 0.7rem; color: #64748b; margin-top: 2px; }
+.chain-arrow { padding: 0 8px; color: #475569; font-size: 1.2rem; }
+.chain-box.hot { border-color: #ef4444; }
+.chain-box.hot code { color: #ef4444; }
+
+/* ── BEFORE/AFTER COMPARE ── */
+.compare { display: flex; gap: 16px; flex-wrap: wrap; margin: 12px 0; }
+.compare > div { flex: 1; min-width: 280px; }
+.compare-title { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px; }
+.before .compare-title { color: #ef4444; }
+.after  .compare-title { color: #22c55e; }
+.before { background: #1f0909; border: 1px solid #ef4444; border-radius: 8px; padding: 14px; }
+.after  { background: #052e16; border: 1px solid #22c55e; border-radius: 8px; padding: 14px; }
+pre { font-size: 0.78rem; line-height: 1.6; white-space: pre-wrap; color: #e2e8f0; }
+.kw { color: #60a5fa; }
+.fn { color: #a78bfa; }
+.cm { color: #475569; }
+.str { color: #34d399; }
+
+/* ── DICT DIAGRAM ── */
+.dict-diagram { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin: 12px 0; }
+.dict-box {
+  background: #1a0533;
+  border: 1px solid #a855f7;
+  border-radius: 8px;
+  padding: 14px;
+  flex: 1;
+  min-width: 200px;
+}
+.table-box {
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  padding: 14px;
+  flex: 1;
+  min-width: 200px;
+}
+.dict-arrow { font-size: 1.8rem; color: #a855f7; }
+.mem-badge { background: #7c3aed; color: #ede9fe; font-size: 0.68rem; border-radius: 4px; padding: 1px 6px; margin-left: 6px; }
+.disk-badge { background: #1e3a5f; color: #bfdbfe; font-size: 0.68rem; border-radius: 4px; padding: 1px 6px; margin-left: 6px; }
+
+.step-num {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 24px; height: 24px; border-radius: 50%;
+  background: #334155; color: #f8fafc; font-size: 0.8rem; font-weight: 700;
+  margin-right: 8px; flex-shrink: 0;
+}
+.step { display: flex; align-items: flex-start; gap: 0; margin-bottom: 10px; font-size: 0.88rem; line-height: 1.5; }
+
+hr { border: none; border-top: 1px solid #1e293b; margin: 40px 0; }
+</style>
+</head>
+<body>
+
+<h1>ClickHouse FINAL — Visual Guide</h1>
+<h2>Why it's expensive, and how dictionaries fix it</h2>
+
+<hr>
+
+<!-- ═══════════════════════════════════════════════════════════
+     SECTION 1 — ReplacingMergeTree on disk
+════════════════════════════════════════════════════════════════ -->
+<section>
+<h3>1 — What ReplacingMergeTree looks like on disk</h3>
+
+<p style="font-size:0.85rem;color:#94a3b8;margin-bottom:14px;">
+  ClickHouse writes incoming rows into <strong>parts</strong> (immutable sorted files).
+  It merges parts in the background — but between merges, the same logical row
+  can exist in multiple parts with different <code>version</code> values.
+  That's fine at write time. The problem is at <em>read</em> time.
+</p>
+
+<div class="parts-row">
+  <div class="part">
+    <div class="part-title">Part 1 — written 2 hours ago</div>
+    <div class="tbl-wrap">
+      <table>
+        <tr><th>duid</th><th>interval_utc</th><th>value_mw</th><th>version</th></tr>
+        <tr class="dup"><td>LKBANK1</td><td>2026-06-07 10:00</td><td>312.4</td><td><strong>1</strong> <span class="row-label dup-label">old</span></td></tr>
+        <tr><td>MACGEN1</td><td>2026-06-07 10:00</td><td>88.1</td><td>1</td></tr>
+        <tr><td>ARWF1</td><td>2026-06-07 10:00</td><td>201.7</td><td>1</td></tr>
+      </table>
+    </div>
+  </div>
+  <div class="part">
+    <div class="part-title">Part 2 — written 10 min ago (correction)</div>
+    <div class="tbl-wrap">
+      <table>
+        <tr><th>duid</th><th>interval_utc</th><th>value_mw</th><th>version</th></tr>
+        <tr class="win"><td>LKBANK1</td><td>2026-06-07 10:00</td><td>318.9</td><td><strong>2</strong> <span class="row-label win-label">winner</span></td></tr>
+        <tr><td>VMIN1</td><td>2026-06-07 10:05</td><td>450.0</td><td>1</td></tr>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="callout red">
+  ⚠️ <strong>LKBANK1 at 10:00 exists in both parts.</strong> The correct value is 318.9 (version 2).
+  Without FINAL you'd get both rows back. With FINAL, ClickHouse merges the streams on read and discards the loser — but it has to do this work <em>every time</em> you query.
+</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════
+     SECTION 2 — What FINAL actually does row by row
+════════════════════════════════════════════════════════════════ -->
+<section>
+<h3>2 — What FINAL does row by row</h3>
+
+<p style="font-size:0.85rem;color:#94a3b8;margin-bottom:14px;">
+  <code>SELECT * FROM datacapture.hkpug5ii1l25n FINAL</code> —
+  ClickHouse reads all parts, sorts them together by the ORDER BY key, then for each unique key keeps only the row with the highest version.
+</p>
+
+<div class="tbl-wrap">
+  <table>
+    <tr><th>duid</th><th>interval_utc</th><th>value_mw</th><th>version</th><th>FINAL decision</th></tr>
+    <tr class="dead"><td>LKBANK1</td><td>2026-06-07 10:00</td><td>312.4</td><td>1</td><td>❌ discarded (lower version)</td></tr>
+    <tr class="win"><td>LKBANK1</td><td>2026-06-07 10:00</td><td>318.9</td><td>2</td><td>✅ kept</td></tr>
+    <tr class="win"><td>ARWF1</td><td>2026-06-07 10:00</td><td>201.7</td><td>1</td><td>✅ kept (no duplicate)</td></tr>
+    <tr class="win"><td>MACGEN1</td><td>2026-06-07 10:00</td><td>88.1</td><td>1</td><td>✅ kept (no duplicate)</td></tr>
+    <tr class="win"><td>VMIN1</td><td>2026-06-07 10:05</td><td>450.0</td><td>1</td><td>✅ kept (no duplicate)</td></tr>
+  </table>
+</div>
+
+<div class="callout">
+  This dedup step (ReplacingSorted in the EXPLAIN output) runs <strong>on every single query</strong>, across all 500k rows, on all 4 parallel threads.
+  In production with 4.8 billion rows it's a serious bottleneck.
+</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════
+     SECTION 3 — The view chain
+════════════════════════════════════════════════════════════════ -->
+<section>
+<h3>3 — Why every query hits FINAL (the view chain)</h3>
+
+<p style="font-size:0.85rem;color:#94a3b8;margin-bottom:14px;">
+  Every consumer reads through two layers of views. FINAL is inherited transitively —
+  so even a simple count on a business view triggers a full dedup scan.
+</p>
+
+<div class="chain">
+  <div class="chain-box">
+    <div>Your query</div>
+    <code>SELECT avg(value_mw)<br>FROM au.dispatch_summary</code>
+    <div class="eng">derived view</div>
+  </div>
+  <div class="chain-arrow">→</div>
+  <div class="chain-box hot">
+    <div>read.hkpug5ii1l25n</div>
+    <code>SELECT * FROM datacapture…<br><strong>FINAL</strong></code>
+    <div class="eng">982 views like this</div>
+  </div>
+  <div class="chain-arrow">→</div>
+  <div class="chain-box">
+    <div>datacapture.hkpug5ii1l25n</div>
+    <code>ReplacingMergeTree</code>
+    <div class="eng">raw table on disk</div>
+  </div>
+</div>
+
+<div class="callout red">
+  199 of 209 derived views in production read through <code>read.*</code> — meaning they all inherit FINAL.
+  Every dashboard panel, every Grafana query, every downstream join triggers a full dedup scan of the underlying table.
+</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════
+     SECTION 4 — The pipeline from your EXPLAIN
+════════════════════════════════════════════════════════════════ -->
+<section>
+<h3>4 — The EXPLAIN pipeline you ran, annotated</h3>
+
+<div class="pipe">
+
+  <div class="pipe-box p-disk" style="max-width:700px;">
+    <div class="name">MergeTreeSelect (InOrder) × 4 <span style="font-size:0.7rem;background:rgba(255,255,255,0.1);border-radius:3px;padding:1px 6px;">DISK</span></div>
+    <div class="sub">Reads 4 sorted ranges from disk in parallel.<br>Each range is a slice of the ORDER BY key space: e.g. (-inf → MACGEN1/VIC1) and (MACGEN1/VIC1 → +inf)</div>
+  </div>
+  <div class="pipe-arrow"></div>
+
+  <div class="pipe-box p-filter" style="max-width:700px;">
+    <div class="name">FilterSortedStreamByRange × 2</div>
+    <div class="sub">Trims each stream to its exact key boundary so streams don't overlap.<br>Necessary before merging — you can't dedup across overlapping ranges.</div>
+  </div>
+  <div class="pipe-arrow"></div>
+
+  <div class="pipe-box p-dedup" style="max-width:700px;">
+    <div class="name">⚡ ReplacingSorted 2 → 1 &nbsp;← THE HOTSPOT</div>
+    <div class="sub">Merges 2 sorted streams into 1, keeping only the highest-version row per ORDER BY key.<br>This is what FINAL means at the execution level. Runs on every query. Cannot be cached.</div>
+  </div>
+  <div class="pipe-arrow"></div>
+
+  <div class="pipe-box p-filter" style="max-width:700px;">
+    <div class="name">SelectByIndicesTransform</div>
+    <div class="sub">Passes only the winning rows upstream — discards the losers identified by ReplacingSorted.</div>
+  </div>
+  <div class="pipe-arrow"></div>
+
+  <div class="pipe-box p-agg" style="max-width:700px;">
+    <div class="name">AggregatingTransform × 4 → Resize → result</div>
+    <div class="sub">Runs count() across 4 threads, merges results, returns to you.</div>
+  </div>
+
+</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════
+     SECTION 5 — Which tables are the problem (§4a)
+════════════════════════════════════════════════════════════════ -->
+<section>
+<h3>5 — The §4a small tables — why they're the worst offenders</h3>
+
+<p style="font-size:0.85rem;color:#94a3b8;margin-bottom:14px;">
+  The big datacapture tables are expensive to dedup — but they're also big enough that you expect some cost.
+  The real waste is small <em>reference</em> tables being read through FINAL on every join.
+  These rarely change, yet every query re-deduplicates them from scratch.
+</p>
+
+<div class="tbl-wrap">
+  <table>
+    <tr><th>table</th><th>rows</th><th>changes how often?</th><th>currently read via</th><th>fix</th></tr>
+    <tr><td>tech.trading_holiday</td><td>1,922</td><td>yearly calendar update</td><td>read.trading_holiday FINAL</td><td>→ dictionary</td></tr>
+    <tr><td>utl.kafka_crossdb_connectors</td><td>27</td><td>almost never</td><td>read.kafka_crossdb_connectors FINAL</td><td>→ dictionary</td></tr>
+    <tr><td>nz.generation_units</td><td>111</td><td>new plant commissioned</td><td>read.generation_units FINAL</td><td>→ dictionary</td></tr>
+    <tr><td>mdm.counterparty</td><td>19</td><td>new counterparty onboarded</td><td>read.counterparty FINAL</td><td>→ dictionary</td></tr>
+    <tr><td>stg.date</td><td>4,474</td><td>never (static calendar)</td><td>read.date FINAL</td><td>→ dictionary</td></tr>
+  </table>
+</div>
+
+<div class="callout red">
+  Every JOIN against these tables triggers a FINAL dedup scan — even though the underlying data almost never changes.
+  A 19-row counterparty table should never cause a ReplacingSorted merge.
+</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════
+     SECTION 6 — How a dictionary fixes it
+════════════════════════════════════════════════════════════════ -->
+<section>
+<h3>6 — How a dictionary fixes it</h3>
+
+<p style="font-size:0.85rem;color:#94a3b8;margin-bottom:14px;">
+  A ClickHouse dictionary loads a table into RAM once and serves lookups directly from memory.
+  No disk read. No ReplacingSorted. No FINAL overhead. Refreshes automatically every N minutes.
+</p>
+
+<div class="dict-diagram">
+  <div class="table-box">
+    <div style="font-size:0.72rem;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px;">
+      tech.trading_holiday <span class="disk-badge">DISK</span>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <tr><th>date</th><th>area</th><th>holiday_name</th></tr>
+        <tr><td>2026-01-01</td><td>NSW1</td><td>New Year</td></tr>
+        <tr><td>2026-01-27</td><td>NSW1</td><td>Australia Day</td></tr>
+        <tr><td>2026-04-25</td><td>VIC1</td><td>ANZAC Day</td></tr>
+      </table>
+    </div>
+    <div style="font-size:0.75rem;color:#64748b;margin-top:8px;">Read via <code>read.trading_holiday FINAL</code> → ReplacingSorted on every join</div>
+  </div>
+
+  <div style="text-align:center;">
+    <div class="dict-arrow">⇒</div>
+    <div style="font-size:0.7rem;color:#a855f7;">loaded into RAM<br>once every 5–10 min</div>
+  </div>
+
+  <div class="dict-box">
+    <div style="font-size:0.72rem;color:#a855f7;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px;">
+      tech.trading_holiday_dict <span class="mem-badge">RAM</span>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <tr><th>(date, area)</th><th>holiday_name</th></tr>
+        <tr class="dict-row"><td>(2026-01-01, NSW1)</td><td>New Year</td></tr>
+        <tr class="dict-row"><td>(2026-01-27, NSW1)</td><td>Australia Day</td></tr>
+        <tr class="dict-row"><td>(2026-04-25, VIC1)</td><td>ANZAC Day</td></tr>
+      </table>
+    </div>
+    <div style="font-size:0.75rem;color:#64748b;margin-top:8px;">Lookup: <code>dictGet('tech.trading_holiday_dict', 'holiday_name', (date, area, calendar))</code></div>
+  </div>
+</div>
+
+<div class="callout green">
+  ✅ dictGet() hits RAM directly. Zero disk reads, zero FINAL dedup, sub-millisecond per row.
+  The dictionary refreshes automatically in the background — your queries never wait for it.
+</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════
+     SECTION 7 — Before / After query rewrite
+════════════════════════════════════════════════════════════════ -->
+<section>
+<h3>7 — Before / After: the query rewrite you'll do in exercise 3</h3>
+
+<div class="compare">
+  <div class="before">
+    <div class="compare-title">❌ Before — joins through FINAL</div>
+    <pre><span class="kw">SELECT</span>
+    date_key,
+    h.holiday_name,
+    h.is_partial
+<span class="kw">FROM</span> stg.date d
+<span class="kw">LEFT JOIN</span> read.trading_holiday h
+    <span class="kw">ON</span>  d.date_key = h.date
+    <span class="kw">AND</span> h.area     = <span class="str">'NSW1'</span>
+    <span class="kw">AND</span> h.calendar = <span class="str">'AEMO'</span>
+
+<span class="cm">-- read.trading_holiday is:
+--   SELECT * FROM tech.trading_holiday FINAL
+-- So this join triggers ReplacingSorted
+-- on 1,922 rows × every query</span></pre>
+  </div>
+
+  <div class="after">
+    <div class="compare-title">✅ After — dictGet from RAM</div>
+    <pre><span class="kw">SELECT</span>
+    date_key,
+    <span class="fn">dictGet</span>(
+        <span class="str">'tech.trading_holiday_dict'</span>,
+        <span class="str">'holiday_name'</span>,
+        (date_key, <span class="str">'NSW1'</span>, <span class="str">'AEMO'</span>)
+    ) <span class="kw">AS</span> holiday_name,
+    <span class="fn">dictHas</span>(
+        <span class="str">'tech.trading_holiday_dict'</span>,
+        (date_key, <span class="str">'NSW1'</span>, <span class="str">'AEMO'</span>)
+    ) <span class="kw">AS</span> is_holiday
+<span class="kw">FROM</span> stg.date
+
+<span class="cm">-- No JOIN. No FINAL. No disk read.
+-- Lookup goes straight to RAM.</span></pre>
+  </div>
+</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════
+     SECTION 8 — Exercise roadmap
+════════════════════════════════════════════════════════════════ -->
+<section>
+<h3>8 — What you're building across the 4 exercises</h3>
+
+<div class="step"><span class="step-num">1</span><div>
+  <strong>01_understand_final.sql</strong> — run EXPLAIN, count duplicates, time a FINAL aggregation. Establishes the baseline ms you'll beat.
+</div></div>
+<div class="step"><span class="step-num">2</span><div>
+  <strong>02_create_dictionaries.sql</strong> — load trading_holiday, generation_units, kafka_connectors into RAM dictionaries. After this, Grafana Dictionary Memory panel shows them loaded.
+</div></div>
+<div class="step"><span class="step-num">3</span><div>
+  <strong>03_rewrite_with_dictionaries.sql</strong> — replace FINAL joins with dictGet(). Run BEFORE and AFTER back to back, compare ms in the Grafana Query Performance dashboard.
+</div></div>
+<div class="step"><span class="step-num">4</span><div>
+  <strong>04_benchmark.sql</strong> — labelled queries so Grafana separates FINAL vs dictGet in the Slowest Queries table. This is your proof that the rewrite worked.
+</div></div>
+</section>
+
+</body>
+</html>

@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lab 13 · Read warfare — caches, in-order, FINAL-dodging</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#16181d;--panel:#1e2128;--panel2:#23262e;--line:#31353f;--ink:#e8e6df;--dim:#989ca6;--faint:#6b7078;--yellow:#f5c518;--read:#5fa8ff;--danger:#ff5d52;--ok:#5ad08a;--mono:'IBM Plex Mono',ui-monospace,monospace;--disp:'Space Grotesk',sans-serif;--body:'Inter',system-ui,sans-serif}
+  *{box-sizing:border-box;margin:0;padding:0}body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.65}main{max-width:980px;margin:0 auto;padding:0 20px 120px}a{color:var(--yellow)}::selection{background:var(--yellow);color:#16181d}
+  header{padding:64px 0 40px;border-bottom:1px solid var(--line)}.crumb{font-family:var(--mono);font-size:13px;color:var(--faint)}.crumb b{color:var(--yellow);font-weight:500}.crumb a{color:var(--faint);text-decoration:none}.crumb a:hover{color:var(--yellow)}
+  h1{font-family:var(--disp);font-weight:700;font-size:clamp(30px,5vw,46px);line-height:1.08;margin:14px 0;letter-spacing:-.02em}h1 .y{color:var(--yellow)}.lede{max-width:680px;color:var(--dim);font-size:17px}.lede b{color:var(--ink);font-weight:600}
+  .meta{display:flex;flex-wrap:wrap;gap:18px;margin-top:22px;font-family:var(--mono);font-size:12.5px;color:var(--faint)}.meta b{color:var(--ink);font-weight:500}
+  section{padding:48px 0 8px;border-bottom:1px solid var(--line)}section:last-of-type{border-bottom:none}
+  .eyebrow{font-family:var(--mono);font-size:12.5px;color:var(--faint);margin-bottom:10px;letter-spacing:.04em;text-transform:uppercase}.eyebrow b{color:var(--yellow);font-weight:500}
+  h2{font-family:var(--disp);font-weight:700;font-size:clamp(22px,3vw,28px);letter-spacing:-.01em;margin-bottom:14px}h3{font-family:var(--disp);font-weight:500;font-size:18px;margin:22px 0 8px}
+  p.prose{max-width:680px;color:var(--dim);margin-bottom:14px}p.prose b{color:var(--ink);font-weight:600}p.prose code,.inline{font-family:var(--mono);font-size:.88em;background:var(--panel2);padding:2px 6px;border-radius:4px;color:var(--ink)}
+  pre.sql,pre.shell,pre.diagram{font-family:var(--mono);font-size:13px;line-height:1.55;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:16px 18px;overflow-x:auto;margin:12px 0 14px;color:var(--ink);white-space:pre}
+  pre.shell{border-left:3px solid var(--read)}pre.sql{border-left:3px solid var(--yellow)}pre.diagram{border-left:3px solid var(--faint);color:var(--dim)}
+  pre .kw{color:var(--read)}pre .lit{color:var(--yellow)}pre .com{color:var(--faint);font-style:italic}pre .ok{color:var(--ok)}pre .bad{color:var(--danger)}
+  .step{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:20px 22px;margin:18px 0}.step-h{display:flex;flex-wrap:wrap;align-items:baseline;gap:10px;margin-bottom:6px}.step-n{font-family:var(--mono);font-size:11px;color:var(--yellow);background:var(--panel2);padding:3px 8px;border-radius:4px;font-weight:600}.step-t{font-family:var(--disp);font-size:17px;font-weight:600}
+  .expect{border-left:3px solid var(--ok);padding:6px 0 6px 14px;color:var(--dim);font-size:14.5px;margin:10px 0 0;max-width:660px}.expect b{color:var(--ink)}.expect .num{color:var(--yellow);font-family:var(--mono);font-weight:600}
+  .gotcha{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--danger);border-radius:8px;padding:14px 18px;margin:10px 0;color:var(--dim);max-width:720px}.gotcha b{color:var(--ink);font-weight:600}.gotcha .tag{font-family:var(--mono);font-size:11px;color:var(--danger);text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:4px}
+  .takeaway{border-left:3px solid var(--yellow);padding:6px 0 6px 16px;color:var(--ink);max-width:680px;margin:12px 0 0;font-size:15.5px}.takeaway b{color:var(--yellow)}
+  table{width:100%;border-collapse:collapse;font-size:14px;margin:12px 0 18px}th{font-family:var(--mono);font-size:11.5px;color:var(--faint);text-align:left;font-weight:500;padding:10px 12px;border-bottom:1px solid var(--line);text-transform:uppercase;letter-spacing:.04em}td{padding:10px 12px;border-bottom:1px solid var(--line);color:var(--dim);vertical-align:top}td code{font-family:var(--mono);font-size:.86em;color:var(--ink);background:var(--panel2);padding:2px 6px;border-radius:3px}tr td:first-child{color:var(--ink);font-weight:500}
+  .next{display:flex;flex-wrap:wrap;gap:14px;margin-top:18px}.next a{display:block;flex:1 1 280px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px 16px;text-decoration:none;color:var(--dim);transition:border-color .15s}.next a:hover{border-color:var(--yellow)}.next .nx-eyebrow{font-family:var(--mono);font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px}.next .nx-t{color:var(--ink);font-weight:600;font-size:15px}
+  footer{margin-top:60px;padding-top:24px;border-top:1px solid var(--line);font-family:var(--mono);font-size:13px;color:var(--faint)}
+</style>
+</head>
+<body><main>
+
+<header>
+  <div class="crumb"><a href="../../../README.md">clickhouse-playground</a> / <a href="../../README.md">lab</a> / <a href="index.html">exercises</a> / <b>13 · read_warfare</b></div>
+  <h1>Five ways to make reads <span class="y">disappear</span>.</h1>
+  <p class="lede">Three caches you control, in-order aggregation that never builds a hash table, sampling for 10–100× speedups, three ways to dodge FINAL, and aggregate projections — the rollup hidden inside the table. Every Grafana dashboard you've ever loaded slowly was solvable from this exercise.</p>
+  <div class="meta">
+    <span>File · <b>lab/sql/13_read_warfare.sql</b> + <b>lab/scripts/torture_reads.sh</b></span>
+    <span>Reading · <b>~18 min</b></span>
+    <span>Level · <b>Expert</b></span>
+    <span>Prereq · <b>make seed</b></span>
+  </div>
+</header>
+
+<section>
+  <div class="eyebrow"><b>A</b> · The three caches</div>
+  <h2>One automatic, two opt-in</h2>
+  <table>
+    <thead><tr><th>Cache</th><th>What it stores</th><th>When to use</th></tr></thead>
+    <tbody>
+      <tr><td>Mark cache</td><td>Granule offsets (from exercise 10)</td><td>Automatic. Prewarm with <code>FORMAT Null</code> queries.</td></tr>
+      <tr><td>Uncompressed block cache</td><td>Decompressed column blocks</td><td>Off by default. Gold for hot small queries.</td></tr>
+      <tr><td><b>Query cache</b></td><td>Whole query result</td><td><b>The dashboard cheat code.</b></td></tr>
+    </tbody>
+  </table>
+  <pre class="sql"><span class="kw">SELECT</span> count() <span class="kw">FROM</span> lab.events <span class="kw">WHERE</span> site_id = <span class="lit">42</span>
+<span class="kw">SETTINGS</span> use_uncompressed_cache = <span class="lit">1</span>;
+
+<span class="kw">SELECT</span> country, count() <span class="kw">FROM</span> lab.events <span class="kw">GROUP BY</span> country
+<span class="kw">SETTINGS</span> use_query_cache = <span class="lit">1</span>, query_cache_ttl = <span class="lit">60</span>;
+<span class="com">-- Run twice; second run ~0ms.</span>
+
+<span class="kw">SELECT</span> * <span class="kw">FROM</span> system.query_cache;</pre>
+  <p class="takeaway"><b>20 Grafana users on a 10-second-refresh dashboard = 1 real query per cache TTL instead of 120.</b> This single setting is half of "real-time dashboards without autoscaling".</p>
+</section>
+
+<section>
+  <div class="eyebrow"><b>B</b> · In-order aggregation</div>
+  <h2>GROUP BY that never builds a hash table</h2>
+  <p class="prose">
+    If GROUP BY keys are a <b>prefix</b> of ORDER BY, ClickHouse can stream-aggregate — keeping at most one running group in memory at a time.
+  </p>
+  <pre class="sql"><span class="kw">SELECT</span> site_id, count(), avg(duration_ms)
+<span class="kw">FROM</span> lab.events <span class="kw">GROUP BY</span> site_id
+<span class="kw">SETTINGS</span> optimize_aggregation_in_order = <span class="lit">1</span>;
+
+<span class="com">-- Compare ProfileEvents/memory vs setting = 0:</span>
+<span class="kw">SELECT</span> query_duration_ms, formatReadableSize(memory_usage) <span class="kw">AS</span> mem,
+       ProfileEvents[<span class="lit">'ExternalAggregationWritePart'</span>] <span class="kw">AS</span> spilled
+<span class="kw">FROM</span> system.query_log
+<span class="kw">WHERE</span> type = <span class="lit">'QueryFinish'</span> <span class="kw">AND</span> query <span class="kw">LIKE</span> <span class="lit">'%GROUP BY site_id%'</span>
+<span class="kw">ORDER BY</span> event_time <span class="kw">DESC</span> <span class="kw">LIMIT</span> <span class="lit">4</span>;</pre>
+  <p class="prose">Same trick for ORDER BY: <code>optimize_read_in_order=1</code> makes "<code>ORDER BY site_id, event_time DESC LIMIT 100</code>" read ~100 rows, not 20M.</p>
+</section>
+
+<section>
+  <div class="eyebrow"><b>C</b> · Sampling</div>
+  <h2>Trade accuracy for 10–100× speed</h2>
+  <pre class="sql"><span class="kw">CREATE TABLE</span> lab.events_sampled
+(
+    event_time <span class="kw">DateTime</span>, user_id <span class="kw">UInt32</span>, site_id <span class="kw">UInt16</span>,
+    country <span class="kw">LowCardinality</span>(<span class="kw">String</span>), url <span class="kw">LowCardinality</span>(<span class="kw">String</span>), duration_ms <span class="kw">UInt16</span>
+)
+<span class="kw">ENGINE</span> = MergeTree
+<span class="kw">PARTITION BY</span> toYYYYMM(event_time)
+<span class="kw">ORDER BY</span> (site_id, intHash32(user_id), event_time)
+<span class="kw">SAMPLE BY</span> intHash32(user_id);
+
+<span class="kw">INSERT INTO</span> lab.events_sampled <span class="kw">SELECT</span> * <span class="kw">FROM</span> lab.events;
+
+<span class="kw">SELECT</span> country, count() * <span class="lit">10</span> <span class="kw">AS</span> est_events       <span class="com">-- scale up by 1/sample</span>
+<span class="kw">FROM</span> lab.events_sampled <span class="kw">SAMPLE</span> <span class="lit">1</span>/<span class="lit">10</span>
+<span class="kw">GROUP BY</span> country;</pre>
+  <p class="expect">
+    Sampling is <b>by user</b> here, so per-user funnels stay coherent inside the sample. Exploration / percentile dashboards rarely need exact counts. Trade 10× speed for ~1% accuracy.
+  </p>
+</section>
+
+<section>
+  <div class="eyebrow"><b>D</b> · FINAL-dodging</div>
+  <h2>Three ways to read ReplacingMergeTree without paying the tax</h2>
+  <pre class="sql"><span class="kw">CREATE TABLE</span> lab.user_state
+(
+    user_id <span class="kw">UInt32</span>, plan <span class="kw">LowCardinality</span>(<span class="kw">String</span>),
+    updated_at <span class="kw">DateTime</span>, version <span class="kw">UInt64</span>
+)
+<span class="kw">ENGINE</span> = ReplacingMergeTree(version)
+<span class="kw">ORDER BY</span> user_id;
+
+<span class="kw">INSERT INTO</span> lab.user_state <span class="kw">SELECT</span> number, <span class="lit">'free'</span>,  now() - <span class="lit">100</span>, <span class="lit">1</span> <span class="kw">FROM</span> numbers(<span class="lit">1000000</span>);
+<span class="kw">INSERT INTO</span> lab.user_state <span class="kw">SELECT</span> number, <span class="lit">'pro'</span>,   now(),       <span class="lit">2</span> <span class="kw">FROM</span> numbers(<span class="lit">500000</span>);</pre>
+
+  <h3>Naive — wrong, counts duplicates</h3>
+  <pre class="sql"><span class="kw">SELECT</span> plan, count() <span class="kw">FROM</span> lab.user_state <span class="kw">GROUP BY</span> plan;</pre>
+
+  <h3>1) FINAL — correct, slower</h3>
+  <pre class="sql"><span class="kw">SELECT</span> plan, count() <span class="kw">FROM</span> lab.user_state <span class="kw">FINAL</span> <span class="kw">GROUP BY</span> plan;</pre>
+
+  <h3>2) FINAL parallelized properly</h3>
+  <pre class="sql"><span class="kw">SELECT</span> plan, count() <span class="kw">FROM</span> lab.user_state <span class="kw">FINAL</span> <span class="kw">GROUP BY</span> plan
+<span class="kw">SETTINGS</span> do_not_merge_across_partitions_select_final = <span class="lit">1</span>, max_final_threads = <span class="lit">4</span>;</pre>
+
+  <h3>3) argMax — dedup yourself, often fastest</h3>
+  <pre class="sql"><span class="kw">SELECT</span> plan, count() <span class="kw">FROM</span> (
+    <span class="kw">SELECT</span> user_id, argMax(plan, version) <span class="kw">AS</span> plan
+    <span class="kw">FROM</span> lab.user_state <span class="kw">GROUP BY</span> user_id
+) <span class="kw">GROUP BY</span> plan;</pre>
+  <p class="takeaway"><b>Production rule:</b> dashboards use a pre-deduped MV. FINAL stays in ad-hoc land.</p>
+</section>
+
+<section>
+  <div class="eyebrow"><b>E</b> · Aggregate projections</div>
+  <h2>The rollup hidden inside the table</h2>
+  <pre class="sql"><span class="kw">ALTER TABLE</span> lab.events <span class="kw">ADD PROJECTION</span> daily_country
+(
+    <span class="kw">SELECT</span> toDate(event_time) <span class="kw">AS</span> d, country, count(), avg(duration_ms)
+    <span class="kw">GROUP BY</span> d, country
+);
+<span class="kw">ALTER TABLE</span> lab.events <span class="kw">MATERIALIZE PROJECTION</span> daily_country;
+
+<span class="com">-- Once materialized, this exact aggregation pattern reads the tiny</span>
+<span class="com">-- projection automatically — like an MV, but INVISIBLE to your queries:</span>
+<span class="kw">SELECT</span> toDate(event_time) <span class="kw">AS</span> d, country, count()
+<span class="kw">FROM</span> lab.events <span class="kw">GROUP BY</span> d, country <span class="kw">ORDER BY</span> d
+<span class="kw">SETTINGS</span> force_optimize_projection = <span class="lit">1</span>;   <span class="com">-- error if NOT used = your proof</span></pre>
+</section>
+
+<section>
+  <div class="eyebrow"><b>F</b> · Thread abuse, both directions</div>
+  <h2>Less can be more</h2>
+  <p class="prose">One analyst query at <code>max_threads=8</code> starves your dashboard queries. Counterintuitively:</p>
+  <pre class="sql"><span class="kw">SELECT</span> user_id, count() <span class="kw">FROM</span> lab.events <span class="kw">GROUP BY</span> user_id <span class="kw">FORMAT Null</span>
+<span class="kw">SETTINGS</span> max_threads = <span class="lit">1</span>;   <span class="com">-- vs 8. Time both, then run torture_reads.sh</span></pre>
+  <p class="takeaway"><b>On a busy box, capping analyst threads raises total throughput.</b> Concurrency beats single-query speed. Defense lives in <a href="14_isolation.html">exercise 14</a>.</p>
+</section>
+
+<section>
+  <div class="eyebrow"><b>G</b> · Gotchas</div>
+  <h2>What experts know</h2>
+  <div class="gotcha"><span class="tag">Trap</span>
+    <b>Query cache returns stale data until TTL expires.</b> Set <code>query_cache_ttl</code> shorter than your acceptable lag. The cache also keys on the exact SQL string — change a literal and you miss it.
+  </div>
+  <div class="gotcha"><span class="tag">Trap</span>
+    <b>Projections silently break if you skip <code>MATERIALIZE</code>.</b> The DDL is fine; the projection is just empty until you materialize. Always check <code>system.projection_parts</code>.
+  </div>
+  <div class="gotcha"><span class="tag">Pattern</span>
+    <b>argMax + ReplacingMergeTree is the universal "current state" pattern.</b> Works on any engine, no FINAL tax. The full "latest row per key" recipe in 3 lines.
+  </div>
+</section>
+
+<section>
+  <div class="eyebrow"><b>H</b> · Next</div>
+  <div class="next">
+    <a href="14_isolation.html"><div class="nx-eyebrow">Lab · 14</div><div class="nx-t">Isolation — abuse-proof the box →</div></a>
+    <a href="20_pull_anything.html"><div class="nx-eyebrow">Lab · 20</div><div class="nx-t">Pull anything — table functions →</div></a>
+  </div>
+</section>
+
+<footer>lab/sql/13_read_warfare.sql · part of clickhouse-playground</footer>
+</main></body></html>

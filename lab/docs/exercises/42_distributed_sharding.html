@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lab 42 · Distributed + sharding — one logical table over N shards</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#16181d;--panel:#1e2128;--panel2:#23262e;--line:#31353f;--ink:#e8e6df;--dim:#989ca6;--faint:#6b7078;--yellow:#f5c518;--read:#5fa8ff;--danger:#ff5d52;--ok:#5ad08a;--mono:'IBM Plex Mono',ui-monospace,monospace;--disp:'Space Grotesk',sans-serif;--body:'Inter',system-ui,sans-serif}
+  *{box-sizing:border-box;margin:0;padding:0}body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.65}main{max-width:980px;margin:0 auto;padding:0 20px 120px}a{color:var(--yellow)}::selection{background:var(--yellow);color:#16181d}
+  header{padding:64px 0 40px;border-bottom:1px solid var(--line)}.crumb{font-family:var(--mono);font-size:13px;color:var(--faint)}.crumb b{color:var(--yellow);font-weight:500}.crumb a{color:var(--faint);text-decoration:none}.crumb a:hover{color:var(--yellow)}
+  h1{font-family:var(--disp);font-weight:700;font-size:clamp(30px,5vw,46px);line-height:1.08;margin:14px 0;letter-spacing:-.02em}h1 .y{color:var(--yellow)}.lede{max-width:680px;color:var(--dim);font-size:17px}.lede b{color:var(--ink);font-weight:600}
+  .meta{display:flex;flex-wrap:wrap;gap:18px;margin-top:22px;font-family:var(--mono);font-size:12.5px;color:var(--faint)}.meta b{color:var(--ink);font-weight:500}
+  section{padding:48px 0 8px;border-bottom:1px solid var(--line)}section:last-of-type{border-bottom:none}
+  .eyebrow{font-family:var(--mono);font-size:12.5px;color:var(--faint);margin-bottom:10px;letter-spacing:.04em;text-transform:uppercase}.eyebrow b{color:var(--yellow);font-weight:500}
+  h2{font-family:var(--disp);font-weight:700;font-size:clamp(22px,3vw,28px);letter-spacing:-.01em;margin-bottom:14px}h3{font-family:var(--disp);font-weight:500;font-size:18px;margin:22px 0 8px}
+  p.prose{max-width:680px;color:var(--dim);margin-bottom:14px}p.prose b{color:var(--ink);font-weight:600}p.prose code,.inline{font-family:var(--mono);font-size:.88em;background:var(--panel2);padding:2px 6px;border-radius:4px;color:var(--ink)}
+  pre.sql,pre.shell,pre.diagram{font-family:var(--mono);font-size:13px;line-height:1.55;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:16px 18px;overflow-x:auto;margin:12px 0 14px;color:var(--ink);white-space:pre}
+  pre.shell{border-left:3px solid var(--read)}pre.sql{border-left:3px solid var(--yellow)}pre.diagram{border-left:3px solid var(--faint);color:var(--dim)}
+  pre .kw{color:var(--read)}pre .lit{color:var(--yellow)}pre .com{color:var(--faint);font-style:italic}pre .ok{color:var(--ok)}pre .bad{color:var(--danger)}
+  .step{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:20px 22px;margin:18px 0}.step-h{display:flex;flex-wrap:wrap;align-items:baseline;gap:10px;margin-bottom:6px}.step-n{font-family:var(--mono);font-size:11px;color:var(--yellow);background:var(--panel2);padding:3px 8px;border-radius:4px;font-weight:600}.step-t{font-family:var(--disp);font-size:17px;font-weight:600}
+  .expect{border-left:3px solid var(--ok);padding:6px 0 6px 14px;color:var(--dim);font-size:14.5px;margin:10px 0 0;max-width:660px}.expect b{color:var(--ink)}.expect .num{color:var(--yellow);font-family:var(--mono);font-weight:600}
+  .gotcha{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--danger);border-radius:8px;padding:14px 18px;margin:10px 0;color:var(--dim);max-width:720px}.gotcha b{color:var(--ink);font-weight:600}.gotcha .tag{font-family:var(--mono);font-size:11px;color:var(--danger);text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:4px}
+  .takeaway{border-left:3px solid var(--yellow);padding:6px 0 6px 16px;color:var(--ink);max-width:680px;margin:12px 0 0;font-size:15.5px}.takeaway b{color:var(--yellow)}
+  table{width:100%;border-collapse:collapse;font-size:14px;margin:12px 0 18px}th{font-family:var(--mono);font-size:11.5px;color:var(--faint);text-align:left;font-weight:500;padding:10px 12px;border-bottom:1px solid var(--line);text-transform:uppercase;letter-spacing:.04em}td{padding:10px 12px;border-bottom:1px solid var(--line);color:var(--dim);vertical-align:top}td code{font-family:var(--mono);font-size:.86em;color:var(--ink);background:var(--panel2);padding:2px 6px;border-radius:3px}tr td:first-child{color:var(--ink);font-weight:500}
+  .next{display:flex;flex-wrap:wrap;gap:14px;margin-top:18px}.next a{display:block;flex:1 1 280px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px 16px;text-decoration:none;color:var(--dim);transition:border-color .15s}.next a:hover{border-color:var(--yellow)}.next .nx-eyebrow{font-family:var(--mono);font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px}.next .nx-t{color:var(--ink);font-weight:600;font-size:15px}
+  footer{margin-top:60px;padding-top:24px;border-top:1px solid var(--line);font-family:var(--mono);font-size:13px;color:var(--faint)}
+</style>
+</head>
+<body><main>
+
+<header>
+  <div class="crumb"><a href="../../../README.md">clickhouse-playground</a> / <a href="../../README.md">lab</a> / <a href="index.html">exercises</a> / <b>42 · distributed_sharding</b></div>
+  <h1>The Distributed engine is a <span class="y">router</span>, not a storage engine.</h1>
+  <p class="lede">A Distributed table points at per-shard storage tables on a cluster. Writes route by a sharding key; reads fan out and merge. The same data model that scales a single laptop also scales to a hundred nodes — same SQL, same engines, just more shards.</p>
+  <div class="meta">
+    <span>File · <b>lab/sql/42_distributed_sharding.sql</b></span>
+    <span>Reading · <b>~14 min</b></span>
+    <span>Level · <b>Cluster</b></span>
+    <span>Prereq · <b>exercise 40</b></span>
+  </div>
+</header>
+
+<section>
+  <div class="eyebrow"><b>0</b> · The point</div>
+  <h2>Two tables, one logical view</h2>
+  <p class="prose">
+    Sharding is conceptually simple: split a big table by a key (<code>cityHash64(user_id) % N</code>), put each slice on a different node. The Distributed engine glues the slices back together — your SELECT looks like a single table, but underneath it fans out to every shard, runs the query locally on each, and merges the partial results.
+  </p>
+  <p class="takeaway"><b>The mental shift:</b> you write to the <i>Distributed</i> table; data lands in <i>local</i> tables on the shards. You read from the Distributed table; the engine does the scatter-gather.</p>
+</section>
+
+<section>
+  <div class="eyebrow"><b>1</b> · Mental model</div>
+  <pre class="diagram">  app  ──INSERT──►  lab.events_dist  (Distributed engine, lives everywhere)
+                           │
+              cityHash64(user_id) % 2
+                  ┌────────┴────────┐
+                  ▼                 ▼
+              shard 1            shard 2
+              ┌──────────┐       ┌──────────┐
+              │  ch-1    │       │  ch-2    │
+              │          │       │          │
+              │ lab.     │       │ lab.     │
+              │  events_ │       │  events_ │
+              │  local   │       │  local   │
+              └──────────┘       └──────────┘
+
+  SELECT on lab.events_dist:
+      fan out the WHERE/GROUP BY to each shard → each runs locally →
+      shard partial results stream back → initiator MERGES them.</pre>
+</section>
+
+<section>
+  <div class="eyebrow"><b>2</b> · Run it</div>
+  <h2>Build the two-layer setup</h2>
+
+  <div class="step">
+    <div class="step-h"><span class="step-n">Step 1</span><span class="step-t">Per-shard storage table.</span></div>
+    <pre class="sql"><span class="kw">CREATE TABLE</span> lab.events_local <span class="kw">ON CLUSTER</span> cluster_2s1r
+(
+    event_time  <span class="kw">DateTime</span>,
+    user_id     <span class="kw">UInt32</span>,
+    site_id     <span class="kw">UInt16</span>,
+    country     <span class="kw">LowCardinality</span>(<span class="kw">String</span>),
+    url         <span class="kw">LowCardinality</span>(<span class="kw">String</span>),
+    duration_ms <span class="kw">UInt16</span>
+)
+<span class="kw">ENGINE</span> = MergeTree
+<span class="kw">ORDER BY</span> (site_id, event_time);</pre>
+    <p class="prose">Plain MergeTree — no replication on <code>cluster_2s1r</code> (it's 2 shards × 1 replica). For an HA-AND-sharded production cluster, swap <code>MergeTree</code> for <code>ReplicatedMergeTree</code> and use a cluster with N shards × M replicas.</p>
+  </div>
+
+  <div class="step">
+    <div class="step-h"><span class="step-n">Step 2</span><span class="step-t">Distributed table on top.</span></div>
+    <pre class="sql"><span class="kw">CREATE TABLE</span> lab.events_dist <span class="kw">ON CLUSTER</span> cluster_2s1r <span class="kw">AS</span> lab.events_local
+<span class="kw">ENGINE</span> = Distributed(
+    <span class="lit">'cluster_2s1r'</span>,     <span class="com">-- cluster name from clusters.xml</span>
+    <span class="lit">'lab'</span>,              <span class="com">-- target DB on each shard</span>
+    <span class="lit">'events_local'</span>,     <span class="com">-- target table</span>
+    cityHash64(user_id) <span class="com">-- sharding key</span>
+);</pre>
+    <p class="prose">The sharding key is <b>optional</b> but recommended. Without it, INSERTs go round-robin (or to the local shard). A good key produces uniform distribution and co-locates related rows.</p>
+  </div>
+
+  <div class="step">
+    <div class="step-h"><span class="step-n">Step 3</span><span class="step-t">Insert and verify distribution.</span></div>
+    <pre class="sql"><span class="kw">INSERT INTO</span> lab.events_dist
+<span class="kw">SELECT</span> now() - toIntervalSecond(rand() % <span class="lit">3600</span>),
+       rand() % <span class="lit">1000000</span>, rand() % <span class="lit">500</span>,
+       [<span class="lit">'US'</span>,<span class="lit">'DE'</span>,<span class="lit">'IN'</span>][<span class="lit">1</span> + rand() % <span class="lit">3</span>],
+       [<span class="lit">'/home'</span>,<span class="lit">'/cart'</span>][<span class="lit">1</span> + rand() % <span class="lit">2</span>],
+       rand() % <span class="lit">5000</span>
+<span class="kw">FROM</span> numbers(<span class="lit">1000000</span>);
+
+<span class="com">-- Where did the data actually land?</span>
+<span class="kw">SELECT</span> hostName() <span class="kw">AS</span> host, count() <span class="kw">AS</span> rows_on_this_node
+<span class="kw">FROM</span> clusterAllReplicas(<span class="lit">'cluster_2s1r'</span>, lab.events_local)
+<span class="kw">GROUP BY</span> host;</pre>
+    <p class="expect">Roughly <b>500k on ch-1, 500k on ch-2</b>. Hash distribution is random but uniform for a uniformly distributed key. Skewed keys (e.g. <code>tenant_id</code> where one tenant has 90% of traffic) produce skewed shards.</p>
+  </div>
+
+  <div class="step">
+    <div class="step-h"><span class="step-n">Step 4</span><span class="step-t">Fan-out aggregation.</span></div>
+    <pre class="sql"><span class="kw">SELECT</span> count(), uniq(user_id) <span class="kw">FROM</span> lab.events_dist;</pre>
+    <p class="prose">
+      Each shard runs <code>count()</code> locally. The initiator sums the two partials. <code>uniq()</code> ships the HLL <i>state</i> across the wire, not raw values — most aggregations were designed for this and are mergeable. Plain <code>count(DISTINCT user_id)</code> is NOT mergeable across shards correctly without the HLL trick — that's why CH ships <code>uniq</code> and friends.
+    </p>
+  </div>
+</section>
+
+<section>
+  <div class="eyebrow"><b>3</b> · Cross-shard JOIN — the trap and three fixes</div>
+  <p class="prose">
+    A naive JOIN on a Distributed table sends the RIGHT side to each shard <i>separately</i>. If the right side itself lives on Distributed, each shard sees only its own slice — and rows that should join across shards <b>silently drop</b>. Three options:
+  </p>
+  <table>
+    <thead><tr><th>Approach</th><th>When</th></tr></thead>
+    <tbody>
+      <tr><td><b>1. GLOBAL JOIN / GLOBAL IN</b><br><code>GLOBAL ANY INNER JOIN</code></td><td>Initiator collects right side once and broadcasts to every shard. Right side small.</td></tr>
+      <tr><td><b>2. Dictionary</b> <code>dictGet</code></td><td>Load dimension into RAM on every node (ON CLUSTER). <b>The default cluster pattern.</b> Exercise 04 was the foundation; in a cluster the win is even larger because JOIN is even more fraught.</td></tr>
+      <tr><td><b>3. <code>distributed_product_mode</code></b></td><td>Setting: <code>deny</code> errors if the JOIN risks wrong answers; <code>local</code> assumes you've co-located keys; <code>global</code> auto-promotes to GLOBAL JOIN.</td></tr>
+    </tbody>
+  </table>
+  <pre class="sql"><span class="com">-- GLOBAL ANY INNER JOIN example: small right side, broadcast once.</span>
+<span class="kw">SELECT</span> count() <span class="kw">FROM</span> lab.events_dist e
+<span class="kw">GLOBAL ANY INNER JOIN</span> (<span class="kw">SELECT</span> <span class="lit">1</span> <span class="kw">AS</span> site_id, <span class="lit">'tier_a'</span> <span class="kw">AS</span> tier) s
+<span class="kw">USING</span> site_id;</pre>
+</section>
+
+<section>
+  <div class="eyebrow"><b>4</b> · Settings worth memorizing</div>
+  <table>
+    <thead><tr><th>Setting</th><th>What it does</th></tr></thead>
+    <tbody>
+      <tr><td><code>insert_distributed_sync = 1</code></td><td>Wait for ack from each shard before returning. Slower, safer. Default async.</td></tr>
+      <tr><td><code>prefer_localhost_replica = 1</code></td><td>Cut a network hop when the initiator is also a replica.</td></tr>
+      <tr><td><code>max_parallel_replicas = N</code></td><td>Split a single query across N replicas of the same shard for parallelism.</td></tr>
+      <tr><td><code>distributed_aggregation_memory_efficient = 1</code></td><td>Stream partial aggregates back rather than buffering — lower memory on the initiator.</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section>
+  <div class="eyebrow"><b>5</b> · The <code>_shard_num</code> virtual column</div>
+  <pre class="sql"><span class="kw">SELECT</span> shard_num, count() <span class="kw">AS</span> rows
+<span class="kw">FROM</span> (
+    <span class="kw">SELECT</span> _shard_num <span class="kw">AS</span> shard_num
+    <span class="kw">FROM</span> clusterAllReplicas(<span class="lit">'cluster_2s1r'</span>, lab.events_local)
+)
+<span class="kw">GROUP BY</span> shard_num <span class="kw">ORDER BY</span> shard_num;</pre>
+  <p class="prose">
+    <code>_shard_num</code> is a virtual column on <code>clusterAllReplicas()</code> and Distributed reads. Use it to verify sharding distribution and find skew. Huge gap between shards = bad sharding key or hot tenant.
+  </p>
+</section>
+
+<section>
+  <div class="eyebrow"><b>6</b> · Gotchas</div>
+  <h2>What experts know</h2>
+  <div class="gotcha"><span class="tag">Trap</span>
+    <b>You can't change the sharding key without re-sharding.</b> Like ORDER BY, it's a design decision. Pick a key that uniformly distributes AND keeps related rows together (e.g. all of one user's events on the same shard for cheap GROUP BY user_id).
+  </div>
+  <div class="gotcha"><span class="tag">Trap</span>
+    <b>INSERT INTO Distributed is async by default.</b> Rows go to a spool directory on the initiator, then forward in the background. A node crash can lose unsynced rows. <code>insert_distributed_sync=1</code> trades latency for durability.
+  </div>
+  <div class="gotcha"><span class="tag">Trap</span>
+    <b><code>internal_replication=true</code> in <code>clusters.xml</code> is mandatory with ReplicatedMergeTree.</b> Without it, Distributed will write to EVERY replica directly, duplicating data the engine was about to replicate anyway. The lab's config has it right; check it when copy-pasting elsewhere.
+  </div>
+  <div class="gotcha"><span class="tag">Pattern</span>
+    <b>Most teams over-shard early.</b> ClickHouse vertically scales obscenely well — a single 32-core/128GB box handles billions of rows. Run on one big node first; shard only when you've hit a real wall.
+  </div>
+</section>
+
+<section>
+  <div class="eyebrow"><b>7</b> · Next</div>
+  <div class="next">
+    <a href="44_observability.html"><div class="nx-eyebrow">Lab · 44</div><div class="nx-t">Cluster-wide observability with clusterAllReplicas →</div></a>
+    <a href="45_sharded_final.html"><div class="nx-eyebrow">Lab · 45</div><div class="nx-t">Sharded FINAL is broken — use argMax →</div></a>
+  </div>
+</section>
+
+<footer>lab/sql/42_distributed_sharding.sql · part of clickhouse-playground</footer>
+</main></body></html>

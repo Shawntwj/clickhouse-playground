@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>ReplacingMergeTree — Visual Guide</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: system-ui, sans-serif; background: #0f1117; color: #e2e8f0; padding: 32px; max-width: 1000px; margin: 0 auto; }
+
+h1 { font-size: 1.5rem; color: #f8fafc; margin-bottom: 6px; }
+h2 { font-size: 1rem; color: #94a3b8; font-weight: 400; margin-bottom: 32px; }
+h3 { font-size: 0.95rem; color: #f8fafc; margin-bottom: 12px; letter-spacing: 0.03em; }
+p  { font-size: 0.85rem; color: #94a3b8; line-height: 1.7; margin-bottom: 14px; }
+
+section { margin-bottom: 52px; }
+hr { border: none; border-top: 1px solid #1e293b; margin: 40px 0; }
+
+.callout {
+  padding: 12px 16px; border-radius: 6px;
+  font-size: 0.84rem; line-height: 1.6; margin: 14px 0;
+}
+.yellow { background: #1c1400; border-left: 3px solid #f59e0b; color: #fcd34d; }
+.red    { background: #1f0909; border-left: 3px solid #ef4444; color: #fca5a5; }
+.green  { background: #052e16; border-left: 3px solid #22c55e; color: #86efac; }
+.blue   { background: #0c1a2e; border-left: 3px solid #3b82f6; color: #93c5fd; }
+.purple { background: #1a0533; border-left: 3px solid #a855f7; color: #d8b4fe; }
+
+/* tables */
+.tbl-wrap { overflow-x: auto; margin: 10px 0; }
+table { border-collapse: collapse; font-size: 0.8rem; font-family: monospace; width: 100%; }
+th { background: #1e293b; color: #94a3b8; padding: 6px 12px; text-align: left; font-size: 0.72rem; letter-spacing: 0.05em; }
+td { padding: 5px 12px; border-bottom: 1px solid #1e293b; white-space: nowrap; }
+
+tr.new-row  { background: #052e16; }
+tr.old-row  { background: #1f0909; opacity: 0.5; text-decoration: line-through; }
+tr.merged   { background: #052e16; }
+tr.unmerged { background: #1c1a00; }
+
+.badge {
+  display: inline-block; font-size: 0.68rem; border-radius: 3px;
+  padding: 1px 6px; margin-left: 4px; font-family: system-ui;
+}
+.b-new    { background: #14532d; color: #bbf7d0; }
+.b-old    { background: #450a0a; color: #fca5a5; }
+.b-merged { background: #1e3a5f; color: #bfdbfe; }
+.b-ram    { background: #3b0764; color: #e9d5ff; }
+
+/* timeline */
+.timeline { display: flex; flex-direction: column; gap: 0; }
+.tl-event { display: flex; gap: 16px; align-items: flex-start; }
+.tl-line  { display: flex; flex-direction: column; align-items: center; }
+.tl-dot   { width: 12px; height: 12px; border-radius: 50%; background: #3b82f6; flex-shrink: 0; margin-top: 4px; }
+.tl-stem  { width: 2px; background: #1e293b; flex: 1; min-height: 20px; }
+.tl-body  { padding-bottom: 24px; flex: 1; }
+.tl-time  { font-size: 0.72rem; color: #64748b; margin-bottom: 4px; }
+.tl-title { font-size: 0.88rem; font-weight: 600; color: #f8fafc; margin-bottom: 6px; }
+
+/* parts grid */
+.parts-row { display: flex; gap: 12px; flex-wrap: wrap; margin: 12px 0; }
+.part {
+  background: #1e293b; border: 1px solid #334155;
+  border-radius: 8px; padding: 12px; flex: 1; min-width: 200px;
+}
+.part-title { font-size: 0.7rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px; }
+.part.active { border-color: #3b82f6; }
+.part.merging { border-color: #f59e0b; opacity: 0.6; }
+.part.gone    { border-color: #ef4444; opacity: 0.3; }
+.part.result  { border-color: #22c55e; }
+
+/* merge animation description */
+.merge-visual {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  background: #0c1117; border: 1px solid #1e293b;
+  border-radius: 10px; padding: 16px; margin: 12px 0;
+}
+.mv-box {
+  background: #1e293b; border-radius: 6px;
+  padding: 10px 14px; font-size: 0.8rem; font-family: monospace;
+  text-align: center; flex: 1; min-width: 130px;
+}
+.mv-op { font-size: 1.4rem; color: #475569; }
+.mv-result { border-color: #22c55e; background: #052e16; }
+
+/* compare */
+.compare { display: flex; gap: 14px; flex-wrap: wrap; margin: 12px 0; }
+.compare > div { flex: 1; min-width: 260px; background: #1e293b; border-radius: 8px; padding: 14px; border: 1px solid #334155; }
+.compare > div.bad  { border-color: #ef4444; background: #1f0909; }
+.compare > div.good { border-color: #22c55e; background: #052e16; }
+.compare-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px; }
+.bad  .compare-label { color: #ef4444; }
+.good .compare-label { color: #22c55e; }
+pre { font-size: 0.78rem; line-height: 1.6; white-space: pre-wrap; }
+.kw { color: #60a5fa; } .cm { color: #475569; } .str { color: #34d399; } .fn { color: #a78bfa; }
+
+/* step */
+.steps { display: flex; flex-direction: column; gap: 10px; margin: 12px 0; }
+.step  { display: flex; gap: 12px; align-items: flex-start; font-size: 0.85rem; line-height: 1.5; }
+.step-n {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; border-radius: 50%;
+  background: #334155; color: #f8fafc; font-size: 0.75rem; font-weight: 700; flex-shrink: 0; margin-top: 2px;
+}
+</style>
+</head>
+<body>
+
+<h1>ReplacingMergeTree — Visual Guide</h1>
+<h2>How ClickHouse handles updates when it can't edit rows in place</h2>
+
+<hr>
+
+<!-- ══════════════════════════════════════════════
+     1 — The core problem: append-only storage
+════════════════════════════════════════════════ -->
+<section>
+<h3>1 — ClickHouse can't edit a row in place</h3>
+
+<p>
+  Columnar databases like ClickHouse write data in large immutable blocks called <strong>parts</strong>.
+  Once written, a part is never modified. This makes writes extremely fast (just append a new part)
+  and reads fast (scan sorted columns sequentially). But it creates a problem: <em>how do you update a value?</em>
+</p>
+
+<div class="compare">
+  <div class="bad">
+    <div class="compare-label">❌ What ClickHouse can't do</div>
+    <pre><span class="cm">-- You cannot do this efficiently:</span>
+<span class="kw">UPDATE</span> datacapture.hkpug5ii1l25n
+<span class="kw">SET</span> value_mw = 318.9
+<span class="kw">WHERE</span> duid = <span class="str">'LKBANK1'</span>
+  <span class="kw">AND</span> interval_utc = <span class="str">'2026-06-07 10:00'</span>;
+
+<span class="cm">-- ALTER TABLE ... UPDATE exists but
+-- it rewrites entire parts — very slow,
+-- not designed for frequent use.</span></pre>
+  </div>
+  <div class="good">
+    <div class="compare-label">✅ What ClickHouse does instead</div>
+    <pre><span class="cm">-- Just INSERT a new row with a
+-- higher version number:</span>
+<span class="kw">INSERT INTO</span> datacapture.hkpug5ii1l25n
+<span class="kw">VALUES</span> (
+    <span class="str">'LKBANK1'</span>,
+    <span class="str">'2026-06-07 10:00'</span>,
+    318.9,   <span class="cm">-- corrected value</span>
+    <span class="str">'NSW1'</span>,
+    2        <span class="cm">-- version bumped to 2</span>
+);</pre>
+  </div>
+</div>
+
+<div class="callout yellow">
+  This is the fundamental trade-off: ClickHouse trades write simplicity (just append) for read complexity (deduplicate on read). <code>ReplacingMergeTree</code> is the engine that manages this deduplication.
+</div>
+</section>
+
+<!-- ══════════════════════════════════════════════
+     2 — What a part is
+════════════════════════════════════════════════ -->
+<section>
+<h3>2 — What a "part" is</h3>
+
+<p>
+  Every INSERT creates a new <strong>part</strong> — a folder on disk containing one file per column,
+  sorted by the table's ORDER BY key. ClickHouse merges parts in the background to keep the number
+  of parts manageable.
+</p>
+
+<div class="parts-row">
+  <div class="part active">
+    <div class="part-title">Part 1 — written at T=0</div>
+    <div class="tbl-wrap">
+      <table>
+        <tr><th>duid</th><th>interval_utc</th><th>value_mw</th><th>ver</th></tr>
+        <tr><td>ARWF1</td><td>10:00</td><td>201.7</td><td>1</td></tr>
+        <tr><td>LKBANK1</td><td>10:00</td><td>312.4</td><td>1</td></tr>
+        <tr><td>MACGEN1</td><td>10:00</td><td>88.1</td><td>1</td></tr>
+      </table>
+    </div>
+    <div style="font-size:0.72rem;color:#64748b;margin-top:8px;">Sorted by (duid, interval_utc)</div>
+  </div>
+  <div class="part active">
+    <div class="part-title">Part 2 — written at T=10min (correction)</div>
+    <div class="tbl-wrap">
+      <table>
+        <tr><th>duid</th><th>interval_utc</th><th>value_mw</th><th>ver</th></tr>
+        <tr class="new-row"><td>LKBANK1</td><td>10:00</td><td>318.9</td><td><strong>2</strong> <span class="badge b-new">correction</span></td></tr>
+        <tr><td>VMIN1</td><td>10:05</td><td>450.0</td><td>1</td></tr>
+      </table>
+    </div>
+    <div style="font-size:0.72rem;color:#64748b;margin-top:8px;">LKBANK1/10:00 exists in both parts now</div>
+  </div>
+</div>
+
+<div class="callout blue">
+  At this point, LKBANK1 at 10:00 has <strong>two versions on disk</strong>. The table is correct in the sense that
+  version 2 is the truth — but nothing has cleaned up version 1 yet.
+  That cleanup happens two ways: background merge (automatic) or FINAL (on read).
+</div>
+</section>
+
+<!-- ══════════════════════════════════════════════
+     3 — Background merge
+════════════════════════════════════════════════ -->
+<section>
+<h3>3 — Background merge: the automatic cleanup</h3>
+
+<p>
+  ClickHouse constantly runs background merges — it picks two or more parts, merges them into one
+  sorted part, and deletes the originals. During a merge of <code>ReplacingMergeTree</code>,
+  it deduplicates: for rows with the same ORDER BY key, only the highest version survives.
+</p>
+
+<div class="merge-visual">
+  <div class="mv-box">
+    Part 1<br>
+    <span style="color:#94a3b8;font-size:0.72rem;">ARWF1 v1<br>LKBANK1 v1 ← loser<br>MACGEN1 v1</span>
+  </div>
+  <div class="mv-op">+</div>
+  <div class="mv-box">
+    Part 2<br>
+    <span style="color:#94a3b8;font-size:0.72rem;">LKBANK1 v2 ← winner<br>VMIN1 v1</span>
+  </div>
+  <div class="mv-op">→</div>
+  <div class="mv-box mv-result">
+    Merged Part<br>
+    <span style="color:#86efac;font-size:0.72rem;">ARWF1 v1 ✅<br>LKBANK1 v2 ✅<br>MACGEN1 v1 ✅<br>VMIN1 v1 ✅</span>
+  </div>
+</div>
+
+<p>After a successful merge, LKBANK1 v1 is gone from disk. Queries no longer need to deduplicate.</p>
+
+<div class="callout yellow">
+  ⚠️ <strong>The catch: merges are not instant.</strong> Between the time data is written and when
+  the background merge runs (could be seconds, could be minutes), both versions exist on disk.
+  If you query during that window without FINAL, you get duplicate rows.
+</div>
+</section>
+
+<!-- ══════════════════════════════════════════════
+     4 — FINAL as a safety net
+════════════════════════════════════════════════ -->
+<section>
+<h3>4 — FINAL: deduplication on demand</h3>
+
+<p>
+  <code>FINAL</code> tells ClickHouse: "don't wait for a background merge — deduplicate right now, at read time."
+  It guarantees you always get the correct latest version, regardless of merge state.
+</p>
+
+<div class="timeline">
+  <div class="tl-event">
+    <div class="tl-line"><div class="tl-dot" style="background:#3b82f6"></div><div class="tl-stem"></div></div>
+    <div class="tl-body">
+      <div class="tl-time">T = 0</div>
+      <div class="tl-title">INSERT batch 1 → Part 1 created</div>
+      <div class="tbl-wrap"><table>
+        <tr><th>duid</th><th>value_mw</th><th>ver</th><th>state</th></tr>
+        <tr><td>LKBANK1</td><td>312.4</td><td>1</td><td>on disk</td></tr>
+      </table></div>
+    </div>
+  </div>
+  <div class="tl-event">
+    <div class="tl-line"><div class="tl-dot" style="background:#f59e0b"></div><div class="tl-stem"></div></div>
+    <div class="tl-body">
+      <div class="tl-time">T = 10 min</div>
+      <div class="tl-title">Correction arrives → Part 2 created</div>
+      <div class="tbl-wrap"><table>
+        <tr><th>duid</th><th>value_mw</th><th>ver</th><th>state</th></tr>
+        <tr><td>LKBANK1</td><td>312.4</td><td>1</td><td>Part 1 (still on disk)</td></tr>
+        <tr class="new-row"><td>LKBANK1</td><td>318.9</td><td>2</td><td>Part 2 (just written)</td></tr>
+      </table></div>
+    </div>
+  </div>
+  <div class="tl-event">
+    <div class="tl-line"><div class="tl-dot" style="background:#ef4444"></div><div class="tl-stem"></div></div>
+    <div class="tl-body">
+      <div class="tl-time">T = 10 min (same moment) — query WITHOUT FINAL</div>
+      <div class="tl-title" style="color:#ef4444">❌ Returns both rows — wrong answer</div>
+      <div class="tbl-wrap"><table>
+        <tr><th>duid</th><th>value_mw</th><th>ver</th></tr>
+        <tr class="old-row"><td>LKBANK1</td><td>312.4</td><td>1</td></tr>
+        <tr class="new-row"><td>LKBANK1</td><td>318.9</td><td>2</td></tr>
+      </table></div>
+      <div style="font-size:0.78rem;color:#ef4444;margin-top:6px;">avg(value_mw) = 315.65 — incorrect</div>
+    </div>
+  </div>
+  <div class="tl-event">
+    <div class="tl-line"><div class="tl-dot" style="background:#22c55e"></div><div class="tl-stem"></div></div>
+    <div class="tl-body">
+      <div class="tl-time">T = 10 min — query WITH FINAL</div>
+      <div class="tl-title" style="color:#22c55e">✅ Deduplicates on read — correct answer</div>
+      <div class="tbl-wrap"><table>
+        <tr><th>duid</th><th>value_mw</th><th>ver</th></tr>
+        <tr class="merged"><td>LKBANK1</td><td>318.9</td><td>2</td></tr>
+      </table></div>
+      <div style="font-size:0.78rem;color:#86efac;margin-top:6px;">avg(value_mw) = 318.9 — correct. But costs a sort+merge of all parts.</div>
+    </div>
+  </div>
+  <div class="tl-event">
+    <div class="tl-line"><div class="tl-dot" style="background:#3b82f6"></div><div class="tl-stem" style="min-height:0"></div></div>
+    <div class="tl-body">
+      <div class="tl-time">T = later (background merge runs)</div>
+      <div class="tl-title">Parts 1+2 merged → LKBANK1 v1 deleted from disk</div>
+      <div style="font-size:0.78rem;color:#94a3b8;margin-top:4px;">After this point, queries without FINAL also return correct results — until the next batch of corrections arrives.</div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ══════════════════════════════════════════════
+     5 — Why it's called ReplacingMergeTree
+════════════════════════════════════════════════ -->
+<section>
+<h3>5 — Why it's called "Replacing" MergeTree</h3>
+
+<div class="steps">
+  <div class="step"><span class="step-n">1</span><div><strong>MergeTree</strong> — the base engine. Stores data in sorted parts, merges them in the background. No deduplication.</div></div>
+  <div class="step"><span class="step-n">2</span><div><strong>ReplacingMergeTree</strong> — extends MergeTree with one rule: during a merge, if two rows share the same ORDER BY key, <em>replace</em> the one with the lower version. Hence the name.</div></div>
+  <div class="step"><span class="step-n">3</span><div><strong>SharedReplacingMergeTree</strong> — ClickHouse Cloud version. Same behaviour, but parts are stored in shared object storage (S3-compatible) instead of local disk, so multiple nodes can read the same data. In your playground this maps back to plain <code>ReplacingMergeTree</code>.</div></div>
+</div>
+
+<div class="callout blue">
+  The <code>ORDER BY</code> clause is the deduplication key — not a primary key in the SQL sense.
+  Two rows are considered "the same logical row" if and only if their ORDER BY columns match.
+  In <code>hkpug5ii1l25n</code> that's <code>(model_run_datetime_utc, id, interval_utc, duid, region, fuel_type)</code> — all six columns must match for a row to be considered a duplicate.
+</div>
+</section>
+
+<!-- ══════════════════════════════════════════════
+     6 — The production pattern (why read.* exists)
+════════════════════════════════════════════════ -->
+<section>
+<h3>6 — Why production wraps everything in read.* views</h3>
+
+<p>
+  Instead of requiring every consumer to remember to write FINAL, production created a <code>read</code>
+  database with one view per raw table — each view adds FINAL automatically.
+  Any query on <code>read.*</code> is guaranteed to see deduplicated data.
+</p>
+
+<div class="tbl-wrap">
+  <table>
+    <tr><th>layer</th><th>example</th><th>what it does</th><th>FINAL?</th></tr>
+    <tr><td>Raw</td><td>datacapture.hkpug5ii1l25n</td><td>ReplacingMergeTree on disk, may have duplicates</td><td>No</td></tr>
+    <tr class="new-row"><td>Read</td><td>read.hkpug5ii1l25n</td><td>SELECT * FROM datacapture.hkpug5ii1l25n FINAL</td><td>Yes ← added here</td></tr>
+    <tr><td>Curated</td><td>au.dispatch_summary</td><td>SELECT … FROM read.hkpug5ii1l25n (FINAL inherited)</td><td>Inherited</td></tr>
+    <tr><td>BI</td><td>pbi.dispatch_hourly</td><td>SELECT … FROM au.dispatch_summary (FINAL inherited)</td><td>Inherited</td></tr>
+  </table>
+</div>
+
+<div class="callout red">
+  ⚠️ The problem: 982 raw tables × 1 read view each = 982 permanent FINAL queries.
+  Every panel in every dashboard, every join in every derived view, hits ReplacingSorted.
+  That's fine for large tables where you need FINAL. But small reference tables
+  (27-row config tables, 19-row counterparty lists) don't need live dedup on every read —
+  they barely change. That's the waste the dictionary exercises fix.
+</div>
+</section>
+
+<!-- ══════════════════════════════════════════════
+     7 — Summary: when to use what
+════════════════════════════════════════════════ -->
+<section>
+<h3>7 — When to use FINAL vs a dictionary</h3>
+
+<div class="tbl-wrap">
+  <table>
+    <tr><th>situation</th><th>use</th><th>why</th></tr>
+    <tr><td>Large time-series table, frequently updated</td><td>read.* FINAL view</td><td>Need guaranteed dedup, data changes often</td></tr>
+    <tr><td>Small reference table, rarely changes</td><td>Dictionary</td><td>Load into RAM once, serve from memory — no FINAL overhead</td></tr>
+    <tr><td>Need guaranteed fresh data right now</td><td>FINAL</td><td>Background merge may not have run yet</td></tr>
+    <tr><td>Lookup in a join or enrichment query</td><td>dictGet()</td><td>Single row lookup, sub-millisecond, no sort-merge</td></tr>
+    <tr><td>You own the ingestion and control merge timing</td><td>OPTIMIZE TABLE … FINAL</td><td>Force a merge, then query without FINAL</td></tr>
+  </table>
+</div>
+
+<div class="callout green">
+  ✅ The goal of the exercises: keep FINAL where it's needed (big raw tables), and replace it with
+  dictionaries where it's wasteful (small reference tables that feed millions of join lookups).
+</div>
+</section>
+
+</body>
+</html>

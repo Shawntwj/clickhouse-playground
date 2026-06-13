@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lab 41 · ReplicatedMergeTree — HA + free insert dedup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#16181d;--panel:#1e2128;--panel2:#23262e;--line:#31353f;--ink:#e8e6df;--dim:#989ca6;--faint:#6b7078;--yellow:#f5c518;--read:#5fa8ff;--danger:#ff5d52;--ok:#5ad08a;--mono:'IBM Plex Mono',ui-monospace,monospace;--disp:'Space Grotesk',sans-serif;--body:'Inter',system-ui,sans-serif}
+  *{box-sizing:border-box;margin:0;padding:0}body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.65}main{max-width:980px;margin:0 auto;padding:0 20px 120px}a{color:var(--yellow)}::selection{background:var(--yellow);color:#16181d}
+  header{padding:64px 0 40px;border-bottom:1px solid var(--line)}.crumb{font-family:var(--mono);font-size:13px;color:var(--faint)}.crumb b{color:var(--yellow);font-weight:500}.crumb a{color:var(--faint);text-decoration:none}.crumb a:hover{color:var(--yellow)}
+  h1{font-family:var(--disp);font-weight:700;font-size:clamp(30px,5vw,46px);line-height:1.08;margin:14px 0;letter-spacing:-.02em}h1 .y{color:var(--yellow)}.lede{max-width:680px;color:var(--dim);font-size:17px}.lede b{color:var(--ink);font-weight:600}
+  .meta{display:flex;flex-wrap:wrap;gap:18px;margin-top:22px;font-family:var(--mono);font-size:12.5px;color:var(--faint)}.meta b{color:var(--ink);font-weight:500}
+  section{padding:48px 0 8px;border-bottom:1px solid var(--line)}section:last-of-type{border-bottom:none}
+  .eyebrow{font-family:var(--mono);font-size:12.5px;color:var(--faint);margin-bottom:10px;letter-spacing:.04em;text-transform:uppercase}.eyebrow b{color:var(--yellow);font-weight:500}
+  h2{font-family:var(--disp);font-weight:700;font-size:clamp(22px,3vw,28px);letter-spacing:-.01em;margin-bottom:14px}h3{font-family:var(--disp);font-weight:500;font-size:18px;margin:22px 0 8px}
+  p.prose{max-width:680px;color:var(--dim);margin-bottom:14px}p.prose b{color:var(--ink);font-weight:600}p.prose code,.inline{font-family:var(--mono);font-size:.88em;background:var(--panel2);padding:2px 6px;border-radius:4px;color:var(--ink)}
+  pre.sql,pre.shell,pre.diagram{font-family:var(--mono);font-size:13px;line-height:1.55;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:16px 18px;overflow-x:auto;margin:12px 0 14px;color:var(--ink);white-space:pre}
+  pre.shell{border-left:3px solid var(--read)}pre.sql{border-left:3px solid var(--yellow)}pre.diagram{border-left:3px solid var(--faint);color:var(--dim)}
+  pre .kw{color:var(--read)}pre .lit{color:var(--yellow)}pre .com{color:var(--faint);font-style:italic}pre .ok{color:var(--ok)}pre .bad{color:var(--danger)}
+  .step{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:20px 22px;margin:18px 0}.step-h{display:flex;flex-wrap:wrap;align-items:baseline;gap:10px;margin-bottom:6px}.step-n{font-family:var(--mono);font-size:11px;color:var(--yellow);background:var(--panel2);padding:3px 8px;border-radius:4px;font-weight:600}.step-t{font-family:var(--disp);font-size:17px;font-weight:600}
+  .expect{border-left:3px solid var(--ok);padding:6px 0 6px 14px;color:var(--dim);font-size:14.5px;margin:10px 0 0;max-width:660px}.expect b{color:var(--ink)}.expect .num{color:var(--yellow);font-family:var(--mono);font-weight:600}
+  .gotcha{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--danger);border-radius:8px;padding:14px 18px;margin:10px 0;color:var(--dim);max-width:720px}.gotcha b{color:var(--ink);font-weight:600}.gotcha .tag{font-family:var(--mono);font-size:11px;color:var(--danger);text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:4px}
+  .takeaway{border-left:3px solid var(--yellow);padding:6px 0 6px 16px;color:var(--ink);max-width:680px;margin:12px 0 0;font-size:15.5px}.takeaway b{color:var(--yellow)}
+  table{width:100%;border-collapse:collapse;font-size:14px;margin:12px 0 18px}th{font-family:var(--mono);font-size:11.5px;color:var(--faint);text-align:left;font-weight:500;padding:10px 12px;border-bottom:1px solid var(--line);text-transform:uppercase;letter-spacing:.04em}td{padding:10px 12px;border-bottom:1px solid var(--line);color:var(--dim);vertical-align:top}td code{font-family:var(--mono);font-size:.86em;color:var(--ink);background:var(--panel2);padding:2px 6px;border-radius:3px}tr td:first-child{color:var(--ink);font-weight:500}
+  .next{display:flex;flex-wrap:wrap;gap:14px;margin-top:18px}.next a{display:block;flex:1 1 280px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px 16px;text-decoration:none;color:var(--dim);transition:border-color .15s}.next a:hover{border-color:var(--yellow)}.next .nx-eyebrow{font-family:var(--mono);font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px}.next .nx-t{color:var(--ink);font-weight:600;font-size:15px}
+  footer{margin-top:60px;padding-top:24px;border-top:1px solid var(--line);font-family:var(--mono);font-size:13px;color:var(--faint)}
+</style>
+</head>
+<body><main>
+
+<header>
+  <div class="crumb"><a href="../../../README.md">clickhouse-playground</a> / <a href="../../README.md">lab</a> / <a href="index.html">exercises</a> / <b>41 · replicated_merge_tree</b></div>
+  <h1>Replication is one engine swap, and you get <span class="y">insert dedup</span> as a bonus.</h1>
+  <p class="lede">Change <code>MergeTree</code> to <code>ReplicatedMergeTree</code>, give it a Keeper path, and your data now copies itself to every replica automatically — plus the engine recognizes identical insert blocks and skips duplicates, which is the cheapest exactly-once you'll ever get.</p>
+  <div class="meta">
+    <span>File · <b>lab/sql/41_replicated_merge_tree.sql</b></span>
+    <span>Reading · <b>~12 min</b></span>
+    <span>Level · <b>Cluster</b></span>
+    <span>Prereq · <b>exercise 40</b></span>
+  </div>
+</header>
+
+<section>
+  <div class="eyebrow"><b>0</b> · The point</div>
+  <h2>What ReplicatedMergeTree actually does</h2>
+  <p class="prose">
+    Plain <code>MergeTree</code> writes a part to local disk and that's it. <code>ReplicatedMergeTree</code> writes a part locally, then writes a <b>log entry to Keeper</b> describing the part. Every other replica of the same shard reads that log, pulls the part from any replica that has it, and stores it locally. A few seconds later, every replica has the same data.
+  </p>
+  <p class="takeaway"><b>Free bonus:</b> the same Keeper log tracks INSERT block hashes for ~100 partitions back. Re-submit the same block (e.g. a retry from a flaky producer) and the engine silently no-ops it. <b>This is the "exactly once" most teams need.</b></p>
+</section>
+
+<section>
+  <div class="eyebrow"><b>1</b> · Mental model</div>
+  <pre class="diagram">  INSERT on ch-1:
+                            ┌──────────────┐
+                            │   ch-keeper  │
+                            │              │
+                            │  /tables/01/ │
+                            │   lab/events │
+                            │    /log      │
+                            └──┬────────┬──┘
+                               │        │
+        ┌──────────────────────┘        └──────────────────────┐
+        ▼                                                       ▼
+   ch-1: writes part_1_1_0 locally,                       ch-2: sees new log entry,
+   pushes "I have part_1_1_0" log entry                   downloads part_1_1_0 from ch-1,
+   to Keeper                                              writes it locally.
+
+  Replication lag = time between log push and part download. Typically &lt; 1s.</pre>
+</section>
+
+<section>
+  <div class="eyebrow"><b>2</b> · Run it</div>
+  <h2>The exercise</h2>
+
+  <div class="step">
+    <div class="step-h"><span class="step-n">Step 1</span><span class="step-t">Create a replicated table on cluster_1s2r.</span></div>
+    <pre class="sql"><span class="kw">CREATE TABLE</span> lab.events <span class="kw">ON CLUSTER</span> cluster_1s2r
+(
+    event_time  <span class="kw">DateTime</span>,
+    user_id     <span class="kw">UInt32</span>,
+    site_id     <span class="kw">UInt16</span>,
+    country     <span class="kw">LowCardinality</span>(<span class="kw">String</span>),
+    url         <span class="kw">LowCardinality</span>(<span class="kw">String</span>),
+    duration_ms <span class="kw">UInt16</span>
+)
+<span class="kw">ENGINE</span> = ReplicatedMergeTree(
+    <span class="lit">'/clickhouse/tables/{shard}/lab/events'</span>,   <span class="com">-- Keeper path (same for all replicas)</span>
+    <span class="lit">'{replica}'</span>                                 <span class="com">-- per-node identifier (ch-1 / ch-2)</span>
+)
+<span class="kw">ORDER BY</span> (site_id, event_time);</pre>
+    <p class="prose">
+      Both nodes resolve <code>{shard}</code> to <code>01</code> (same shard = same Keeper path), and <code>{replica}</code> to their own name. Each registers itself under <code>/clickhouse/tables/01/lab/events/replicas/</code>.
+    </p>
+  </div>
+
+  <div class="step">
+    <div class="step-h"><span class="step-n">Step 2</span><span class="step-t">Insert on ch-1, query on ch-2.</span></div>
+    <p class="prose">Run on ch-1 (<code>make sql-1</code>):</p>
+    <pre class="sql"><span class="kw">INSERT INTO</span> lab.events
+<span class="kw">SELECT</span> now() - toIntervalSecond(rand() % <span class="lit">3600</span>),
+       rand() % <span class="lit">1000000</span>, rand() % <span class="lit">500</span>,
+       [<span class="lit">'US'</span>,<span class="lit">'DE'</span>,<span class="lit">'IN'</span>][<span class="lit">1</span> + rand() % <span class="lit">3</span>],
+       [<span class="lit">'/home'</span>,<span class="lit">'/cart'</span>][<span class="lit">1</span> + rand() % <span class="lit">2</span>],
+       rand() % <span class="lit">5000</span>
+<span class="kw">FROM</span> numbers(<span class="lit">100000</span>);</pre>
+    <p class="prose">Then on ch-2 (<code>make sql-2</code>):</p>
+    <pre class="sql"><span class="kw">SELECT</span> count() <span class="kw">FROM</span> lab.events;</pre>
+    <p class="expect"><b>Expect</b> 100000. Replication is typically sub-second on this local cluster.</p>
+  </div>
+
+  <div class="step">
+    <div class="step-h"><span class="step-n">Step 3</span><span class="step-t">Watch replication state.</span></div>
+    <pre class="sql"><span class="kw">SELECT</span> table, replica_name, is_leader,
+       absolute_delay, queue_size, log_pointer
+<span class="kw">FROM</span> system.replicas
+<span class="kw">WHERE</span> database = <span class="lit">'lab'</span> <span class="kw">AND</span> table = <span class="lit">'events'</span>;</pre>
+    <table>
+      <thead><tr><th>Column</th><th>What it means</th></tr></thead>
+      <tbody>
+        <tr><td><code>queue_size</code></td><td>Log entries this replica hasn't pulled yet. &gt; 0 climbing = falling behind.</td></tr>
+        <tr><td><code>absolute_delay</code></td><td>Seconds behind the latest log entry. The metric to alert on.</td></tr>
+        <tr><td><code>log_pointer</code></td><td>Highest log entry this replica has processed.</td></tr>
+        <tr><td><code>is_leader</code></td><td>In newer CH versions, all replicas can lead (multi-leader merges).</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="step">
+    <div class="step-h"><span class="step-n">Step 4</span><span class="step-t">Free insert deduplication.</span></div>
+    <pre class="sql"><span class="kw">INSERT INTO</span> lab.events
+<span class="kw">SELECT</span> toDateTime(<span class="lit">'2026-01-01 00:00:00'</span>) + number,
+       <span class="lit">42</span>, <span class="lit">1</span>, <span class="lit">'US'</span>, <span class="lit">'/home'</span>, <span class="lit">100</span>
+<span class="kw">FROM</span> numbers(<span class="lit">10</span>);</pre>
+    <p class="prose">Run this <b>twice</b>. Then check:</p>
+    <pre class="sql"><span class="kw">SELECT</span> count() <span class="kw">FROM</span> lab.events <span class="kw">WHERE</span> site_id = <span class="lit">1</span> <span class="kw">AND</span> user_id = <span class="lit">42</span>;</pre>
+    <p class="expect"><b>Expect 10, not 20.</b> Keeper hashed the block on the first INSERT and stored that hash in its dedup window. The second identical INSERT matches the hash and is silently skipped. Dedup window: <code>insert_deduplication_window</code> entries per partition (default 100).</p>
+  </div>
+
+  <div class="step">
+    <div class="step-h"><span class="step-n">Step 5</span><span class="step-t">Force-catch-up after partition.</span></div>
+    <pre class="sql"><span class="kw">SYSTEM SYNC REPLICA</span> lab.events;</pre>
+    <p class="prose">Blocks until this replica has processed every log entry. Useful in CI and after manual intervention.</p>
+  </div>
+</section>
+
+<section>
+  <div class="eyebrow"><b>3</b> · Ops cheat sheet</div>
+  <table>
+    <thead><tr><th>Need</th><th>Command</th></tr></thead>
+    <tbody>
+      <tr><td>Restart replication after manual fix</td><td><code>SYSTEM RESTART REPLICA lab.events</code></td></tr>
+      <tr><td>Re-fetch a specific part</td><td><code>ALTER TABLE … FETCH PART 'name' FROM '/path/replicas/ch-2'</code></td></tr>
+      <tr><td>Retire a dead replica</td><td><code>SYSTEM DROP REPLICA 'ch-2' FROM TABLE lab.events</code></td></tr>
+      <tr><td>Manually trigger merge</td><td><code>OPTIMIZE TABLE lab.events FINAL</code> (per replica)</td></tr>
+      <tr><td>Inspect Keeper state for this table</td><td><code>SELECT * FROM system.zookeeper WHERE path = '/clickhouse/tables/01/lab/events'</code></td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section>
+  <div class="eyebrow"><b>4</b> · Gotchas</div>
+  <h2>What experts know</h2>
+  <div class="gotcha"><span class="tag">Trap</span>
+    <b>Same Keeper path on two different tables = corruption.</b> Each ReplicatedMergeTree table needs its OWN ZK path. Macros in <code>{shard}</code>/<code>{database}</code>/<code>{table}</code> help — e.g. <code>'/clickhouse/tables/{shard}/{database}/{table}'</code>.
+  </div>
+  <div class="gotcha"><span class="tag">Trap</span>
+    <b>Insert dedup is per-block-hash, not per-row.</b> Reorder the same rows in two inserts and they're different blocks, no dedup. Use deterministic block construction if you rely on this.
+  </div>
+  <div class="gotcha"><span class="tag">Trap</span>
+    <b><code>internal_replication = true</code> matters for Distributed.</b> Without it (or set to false), Distributed will write a copy to EVERY replica directly — duplicating data because ReplicatedMergeTree was about to do that anyway. With <code>true</code>, Distributed writes to one replica and lets the engine replicate. This is set in <code>clusters.xml</code>, not the table.
+  </div>
+  <div class="gotcha"><span class="tag">Pattern</span>
+    <b><code>SHARED MergeTree</code> is the Cloud-only engine</b> that replaces both Replicated and Distributed by storing parts in object storage with shared metadata. OSS doesn't have it. The OSS pattern (Replicated + Distributed) is what every self-hosted deployment runs.
+  </div>
+</section>
+
+<section>
+  <div class="eyebrow"><b>5</b> · Prove it</div>
+  <table>
+    <thead><tr><th>Question</th><th>Query</th></tr></thead>
+    <tbody>
+      <tr><td>How far behind is this replica?</td><td><code>SELECT absolute_delay, queue_size FROM system.replicas WHERE table='events'</code></td></tr>
+      <tr><td>What did insert dedup skip?</td><td><code>SELECT * FROM system.zookeeper WHERE path = '/clickhouse/tables/01/lab/events/blocks'</code></td></tr>
+      <tr><td>Replication queue contents</td><td><code>SELECT * FROM system.replication_queue WHERE table='events'</code></td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section>
+  <div class="eyebrow"><b>6</b> · Next</div>
+  <div class="next">
+    <a href="42_distributed_sharding.html"><div class="nx-eyebrow">Lab · 42</div><div class="nx-t">Distributed + sharding — one logical table over N shards →</div></a>
+    <a href="45_sharded_final.html"><div class="nx-eyebrow">Lab · 45</div><div class="nx-t">Sharded FINAL is broken — use argMax →</div></a>
+  </div>
+</section>
+
+<footer>lab/sql/41_replicated_merge_tree.sql · part of clickhouse-playground</footer>
+</main></body></html>

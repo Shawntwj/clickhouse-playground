@@ -1,80 +1,92 @@
 # ClickHouse Playground
 
-Local replica of a production ClickHouse Cloud v26.2.1 cluster, with Grafana for exploration. Built from the runbook in `RECREATE.md`.
+Two tracks sharing one ClickHouse + Grafana stack.
 
-## Stack
+> **New here?** Open [`overview.html`](overview.html) first — one page covering how ClickHouse works, why each exercise exists, and which path to take based on what you're trying to do.
+
+| Track | What it is | Database(s) | README | Visual walkthroughs |
+|-------|------------|-------------|--------|---------------------|
+| **`playground/`** | Local replica of a production ClickHouse Cloud cluster. Energy-dispatch data, ReplacingMergeTree, the `SELECT FINAL` hotspot. | `au`, `nz`, `jp`, `mdm`, `datacapture`, `read`, ... | [`playground/README.md`](playground/README.md) | [`playground/docs/index.html`](playground/docs/index.html) |
+| **`lab/`** | Beginner→pro course. ORDER BY, codecs, async inserts, dictionaries, MVs, projections, TTL, integrations (Kafka/Postgres), finance tick store, ML feature factory. | `lab` | [`lab/README.md`](lab/README.md) | [`lab/docs/exercises/index.html`](lab/docs/exercises/index.html) |
+
+## Setup
+
+```bash
+brew install colima docker docker-compose
+colima start --cpu 4 --memory 8 --disk 40
+
+make up                 # ClickHouse + Grafana
+make playground-seed    # prod-replica datacapture data
+make seed               # lab course: 20M synthetic web events
+```
 
 | Service | URL | Credentials |
 |---------|-----|-------------|
-| ClickHouse HTTP | http://localhost:8123 | admin / admin |
-| ClickHouse Play UI | http://localhost:8123/play | admin / admin |
+| ClickHouse HTTP / Play UI | http://localhost:8123/play | admin / admin |
 | Grafana | http://localhost:3000 | admin / admin |
 
-## Quick start
+The ClickHouse container is capped at 4 GB so the memory-pressure exercises in `lab/sql/13_read_warfare.sql` actually feel like pressure.
+
+## Integrations (opt-in)
+
+`lab/sql/20..22` need Redpanda (Kafka-compatible) and Postgres. Bring them up with:
 
 ```bash
-# Start everything
-docker compose up -d
-
-# Wait for ClickHouse to be healthy (~30s), then seed data
-docker exec -i clickhouse clickhouse-client -u admin --password admin --multiquery < scripts/seed_data.sql
-
-# Open Grafana → Energy Dispatch dashboard is pre-provisioned
-open http://localhost:3000
+make up-integrations
+make kafka-storm        # produce 50k JSON events into topic 'events'
 ```
 
-> **Tip:** always run queries via `docker exec -i clickhouse clickhouse-client -u admin --password admin`  
-> or use the browser UI at http://localhost:8123/play (admin / admin).
+## Cluster track (opt-in)
 
-## Project structure
-
-```
-init/
-  01_databases.sql     — 14 databases mirroring production
-  02_tables.sql        — OSS-engine base tables (SharedReplacingMergeTree → ReplacingMergeTree)
-  03_read_views.sql    — read.* FINAL views (the SELECT FINAL hotspot)
-  04_derived_views.sql — curated au/nz/dim layers
-  05_roles.sql         — inco_reader role (SELECT on read.* only)
-
-scripts/
-  seed_data.sql        — synthetic data generation (scaled down from prod)
-  validate.sql         — §8 validation queries from runbook
-  benchmark_final.sql  — FINAL vs dictionary benchmarks (§6 from runbook)
-
-grafana/
-  provisioning/        — auto-wired ClickHouse datasource
-  dashboards/          — Energy Dispatch dashboard (provisioned on startup)
-
-config/clickhouse/
-  users.xml            — admin + replica_reader users
-```
-
-## Engine mapping (OSS vs Cloud)
-
-| Production (Cloud) | Local (OSS) |
-|--------------------|-------------|
-| `SharedReplacingMergeTree` | `ReplacingMergeTree` |
-| `SharedMergeTree` | `MergeTree` |
-
-## Key experiments from the runbook
-
-### SELECT FINAL hotspot (§6)
-All 982 `read.*` views are `SELECT * FROM datacapture.<topic> FINAL`. Run the benchmark:
-```bash
-clickhouse-client -h localhost -u admin --password admin < scripts/benchmark_final.sql
-```
-
-### Dictionary vs FINAL (§4a)
-Small reference tables (`tech.trading_holiday`, `utl.kafka_crossdb_connectors`, etc.) are
-prime candidates for ClickHouse dictionaries. The `benchmark_final.sql` script has a commented
-dictionary DDL template ready to adapt.
-
-### LowCardinality strings (§5)
-Production has 0 `LowCardinality` columns — adding it to categorical `String` columns
-(`region`, `fuel_type`, `run_type`) is a quick win to test compression/speed gains.
-
-## Tear down
+`lab/sql/40..45` need a 2-node ClickHouse cluster + Keeper for coordination. Adds ~1.5 GB to your Colima allocation.
 
 ```bash
-docker compose down -v   # -v removes named volumes (all data)
+make up-cluster         # ch-keeper + ch-1 + ch-2
+make cluster-status     # verify wiring
+make sql-1              # interactive client on ch-1
+make sql-2              # interactive client on ch-2
+```
+
+Covers ON CLUSTER DDL, ReplicatedMergeTree, Distributed/sharding, `clusterAllReplicas()` observability, and why sharded FINAL is silently wrong. See [`lab/docs/exercises/index.html`](lab/docs/exercises/index.html) → Cluster section.
+
+## Layout
+
+```
+.
+├── docker-compose.yml              shared ClickHouse + Grafana
+├── docker-compose.integrations.yml opt-in Redpanda + Postgres
+├── Makefile                        all the targets
+├── init/                           auto-runs on first boot:
+│                                     creates 14 prod-replica DBs + `lab`
+│                                     + prod-replica tables, views, roles
+├── playground/                     prod-replica FINAL track
+│   ├── exercises/                  01..04 FINAL/dictionary exercises
+│   ├── scripts/                    seed_data, validate, benchmark_final
+│   ├── docs/                       expert guide + EXPLAIN walkthroughs
+│   └── README.md
+├── lab/                            beginner→pro course
+│   ├── sql/                        01..07 fundamentals · 10..14 expert
+│                                     · 20..22 integrations · 30..31 finance/ML
+│   ├── scripts/                    insert_storm, torture_*, query_load, kafka_storm
+│   ├── postgres/init.sql           seed for the postgres sync exercise
+│   ├── docs/                       PRIMER, WALKTHROUGH, EXPERT
+│   └── README.md
+└── grafana/
+    ├── provisioning/               datasource + dashboard provider
+    └── dashboards/
+        ├── energy_dispatch.json    playground
+        ├── query_performance.json  playground
+        └── feedback_loop.json      lab
+```
+
+## Useful commands
+
+```bash
+make help                 # list everything
+make sql                  # interactive client
+make load                 # background SELECTs (drives lab Grafana panels)
+make storm-sync           # break it: tiny sync inserts
+make storm-async          # fix it: async inserts
+make playground-bench     # FINAL vs dictionary
+make clean                # tear down + delete data
 ```

@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Playground 01 · Understand the SELECT FINAL hotspot</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#16181d; --panel:#1e2128; --panel2:#23262e; --line:#31353f;
+    --ink:#e8e6df; --dim:#989ca6; --faint:#6b7078;
+    --yellow:#f5c518; --read:#5fa8ff; --danger:#ff5d52; --ok:#5ad08a;
+    --mono:'IBM Plex Mono',ui-monospace,monospace;
+    --disp:'Space Grotesk',sans-serif;
+    --body:'Inter',system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.65}
+  main{max-width:980px;margin:0 auto;padding:0 20px 120px}
+  a{color:var(--yellow)}
+  ::selection{background:var(--yellow);color:#16181d}
+
+  header{padding:64px 0 40px;border-bottom:1px solid var(--line)}
+  .crumb{font-family:var(--mono);font-size:13px;color:var(--faint);letter-spacing:.02em}
+  .crumb b{color:var(--yellow);font-weight:500}
+  .crumb a{color:var(--faint);text-decoration:none}
+  .crumb a:hover{color:var(--yellow)}
+  h1{font-family:var(--disp);font-weight:700;font-size:clamp(30px,5vw,46px);line-height:1.08;margin:14px 0 14px;letter-spacing:-.02em}
+  h1 .y{color:var(--yellow)}
+  .lede{max-width:680px;color:var(--dim);font-size:17px}
+  .lede b{color:var(--ink);font-weight:600}
+  .meta{display:flex;flex-wrap:wrap;gap:18px;margin-top:22px;font-family:var(--mono);font-size:12.5px;color:var(--faint)}
+  .meta b{color:var(--ink);font-weight:500}
+
+  section{padding:48px 0 8px;border-bottom:1px solid var(--line)}
+  section:last-of-type{border-bottom:none}
+  .eyebrow{font-family:var(--mono);font-size:12.5px;color:var(--faint);margin-bottom:10px;letter-spacing:.04em;text-transform:uppercase}
+  .eyebrow b{color:var(--yellow);font-weight:500}
+  h2{font-family:var(--disp);font-weight:700;font-size:clamp(22px,3vw,28px);letter-spacing:-.01em;margin-bottom:14px}
+  h3{font-family:var(--disp);font-weight:500;font-size:18px;margin:22px 0 8px;color:var(--ink)}
+  p.prose{max-width:680px;color:var(--dim);margin-bottom:14px}
+  p.prose b{color:var(--ink);font-weight:600}
+  p.prose code, .inline{font-family:var(--mono);font-size:.88em;background:var(--panel2);padding:2px 6px;border-radius:4px;color:var(--ink)}
+
+  pre.sql, pre.shell, pre.diagram{
+    font-family:var(--mono);font-size:13px;line-height:1.55;background:var(--panel2);
+    border:1px solid var(--line);border-radius:8px;padding:16px 18px;
+    overflow-x:auto;margin:12px 0 14px;color:var(--ink);white-space:pre
+  }
+  pre.shell{border-left:3px solid var(--read)}
+  pre.sql{border-left:3px solid var(--yellow)}
+  pre.diagram{border-left:3px solid var(--faint);color:var(--dim)}
+  pre .kw{color:var(--read)}
+  pre .lit{color:var(--yellow)}
+  pre .com{color:var(--faint);font-style:italic}
+
+  .step{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:20px 22px;margin:18px 0}
+  .step-h{display:flex;flex-wrap:wrap;align-items:baseline;gap:10px;margin-bottom:6px}
+  .step-n{font-family:var(--mono);font-size:11px;color:var(--yellow);background:var(--panel2);padding:3px 8px;border-radius:4px;font-weight:600}
+  .step-t{font-family:var(--disp);font-size:17px;font-weight:600;color:var(--ink)}
+  .expect{border-left:3px solid var(--ok);padding:6px 0 6px 14px;color:var(--dim);font-size:14.5px;margin:10px 0 0;max-width:660px}
+  .expect b{color:var(--ink)}
+  .expect .num{color:var(--yellow);font-family:var(--mono);font-weight:600}
+
+  .gotcha{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--danger);border-radius:8px;padding:14px 18px;margin:10px 0;color:var(--dim);max-width:720px}
+  .gotcha b{color:var(--ink);font-weight:600}
+  .gotcha .tag{font-family:var(--mono);font-size:11px;color:var(--danger);text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:4px}
+
+  .takeaway{border-left:3px solid var(--yellow);padding:6px 0 6px 16px;color:var(--ink);max-width:680px;margin:12px 0 0;font-size:15.5px}
+  .takeaway b{color:var(--yellow)}
+
+  table{width:100%;border-collapse:collapse;font-size:14px;margin:12px 0 18px}
+  th{font-family:var(--mono);font-size:11.5px;color:var(--faint);text-align:left;font-weight:500;padding:10px 12px;border-bottom:1px solid var(--line);text-transform:uppercase;letter-spacing:.04em}
+  td{padding:10px 12px;border-bottom:1px solid var(--line);color:var(--dim);vertical-align:top}
+  td code{font-family:var(--mono);font-size:.86em;color:var(--ink);background:var(--panel2);padding:2px 6px;border-radius:3px}
+  tr td:first-child{color:var(--ink);font-weight:500}
+
+  .next{display:flex;flex-wrap:wrap;gap:14px;margin-top:18px}
+  .next a{display:block;flex:1 1 280px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px 16px;text-decoration:none;color:var(--dim);transition:border-color .15s}
+  .next a:hover{border-color:var(--yellow)}
+  .next .nx-eyebrow{font-family:var(--mono);font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px}
+  .next .nx-t{color:var(--ink);font-weight:600;font-size:15px}
+
+  footer{margin-top:60px;padding-top:24px;border-top:1px solid var(--line);font-family:var(--mono);font-size:13px;color:var(--faint)}
+</style>
+</head>
+<body>
+<main>
+
+<header>
+  <div class="crumb"><a href="../../README.md">clickhouse-playground</a> / <a href="../README.md">playground</a> / <b>01 · understand_final</b></div>
+  <h1>What does <span class="y">SELECT FINAL</span> actually cost?</h1>
+  <p class="lede">All 982 <code>read.*</code> views in production are <code>SELECT * FROM datacapture.&lt;topic&gt; FINAL</code>. Before deciding to replace them with dictionaries, you need to <b>see</b> the tax — in milliseconds, memory, and rows read — on your local replica. That's this exercise.</p>
+  <div class="meta">
+    <span>File · <b>playground/exercises/01_understand_final.sql</b></span>
+    <span>Reading · <b>~10 min</b></span>
+    <span>Level · <b>Diagnostic</b></span>
+    <span>Prereq · <b>make up &amp;&amp; make playground-seed</b></span>
+  </div>
+</header>
+
+<!-- ============ 0. THE POINT ============ -->
+<section>
+  <div class="eyebrow"><b>0</b> · The point</div>
+  <h2>Why FINAL is the hotspot</h2>
+  <p class="prose">
+    Production tables are <code>SharedReplacingMergeTree</code> (locally: <code>ReplacingMergeTree</code>). They deduplicate by <code>version</code> — but only <b>eventually</b>, when the background merge happens. Until then, multiple rows with the same key sit on disk.
+  </p>
+  <p class="prose">
+    <code>FINAL</code> forces the engine to deduplicate <b>at read time</b>. That means: merge-sort across all parts, drop superseded rows, and only then return results. It's correct. It's also <b>the single most expensive thing your fleet does</b>, because every <code>read.*</code> view inherits it.
+  </p>
+  <p class="takeaway"><b>The goal:</b> measure the cost concretely, then go to exercise 02 (dictionaries) and exercise 04 (benchmark) to fix it.</p>
+</section>
+
+<!-- ============ 1. MENTAL MODEL ============ -->
+<section>
+  <div class="eyebrow"><b>1</b> · Mental model</div>
+  <h2>What FINAL does, mechanically</h2>
+
+  <pre class="diagram">datacapture.hkpug5ii1l25n             <span class="com">(ReplacingMergeTree(version))</span>
+
+ part_A                  part_B                  part_C
+ ┌──────────────┐        ┌──────────────┐        ┌──────────────┐
+ │ key=1 v=1    │        │ key=1 v=2    │        │ key=3 v=1    │
+ │ key=2 v=1    │        │ key=2 v=3    │        │ key=4 v=1    │
+ └──────────────┘        └──────────────┘        └──────────────┘
+
+ plain SELECT  ─────────►  read every row, return 6 rows         <span class="bad">WRONG ANSWER</span>
+                            (duplicates because merge hasn't run)
+
+ SELECT FINAL  ─────────►  merge-sort by key, keep MAX(version)
+                            return 4 rows                         <span class="ok">CORRECT</span>
+                            <span class="com">but: reads everything + sorts in memory</span></pre>
+
+  <p class="prose">
+    The shape of the cost: <b>FINAL is roughly a sort-merge across all active parts on every read</b>. The wider the table, the more partitions touched, the higher the tax. Memory grows with the number of parts; latency grows with rows scanned <i>before</i> dedup.
+  </p>
+
+  <p class="prose">
+    Three workarounds (covered in later exercises):
+  </p>
+  <ul style="margin-left:22px;color:var(--dim);max-width:680px">
+    <li style="margin:6px 0"><b>Dictionaries</b> for small, slowly-changing dimensions — load once into RAM, look up in O(1). <a href="02_create_dictionaries.html">Exercise 02 →</a></li>
+    <li style="margin:6px 0"><b><code>argMax(col, version)</code></b> — dedup yourself in SQL, often faster than FINAL on huge fact tables.</li>
+    <li style="margin:6px 0"><b>Aggregating MV</b> — pre-dedup into a target table, dashboards read the target.</li>
+  </ul>
+</section>
+
+<!-- ============ 2. RUN IT ============ -->
+<section>
+  <div class="eyebrow"><b>2</b> · Run it</div>
+  <h2>The exercise</h2>
+
+  <p class="prose">From the repo root:</p>
+
+  <pre class="shell"><span class="com"># If you haven't already:</span>
+make up
+make playground-seed   <span class="com"># ~750k rows across datacapture.* and reference tables</span></pre>
+
+  <p class="prose">
+    Then open <a href="http://localhost:8123/play">http://localhost:8123/play</a> (admin / admin) and work through the file. The exercise has five steps, each tagged in the SQL so Grafana's <b>Query Performance</b> dashboard can isolate them.
+  </p>
+
+  <div class="step">
+    <div class="step-h"><span class="step-n">Step 1</span><span class="step-t">How many duplicate rows exist?</span></div>
+    <pre class="sql"><span class="kw">SELECT</span>
+    <span class="lit">'hkpug5ii1l25n'</span>                                              <span class="kw">AS</span> topic,
+    (<span class="kw">SELECT</span> count() <span class="kw">FROM</span> datacapture.hkpug5ii1l25n)             <span class="kw">AS</span> raw_rows,
+    (<span class="kw">SELECT</span> count() <span class="kw">FROM</span> datacapture.hkpug5ii1l25n <span class="kw">FINAL</span>)       <span class="kw">AS</span> final_rows,
+    raw_rows - final_rows                                        <span class="kw">AS</span> duplicates;</pre>
+    <p class="expect">
+      <b>Expect:</b> <code>raw_rows</code> ≫ <code>final_rows</code>. With the seed data here, the merge sees ~500k inserts of which only the latest <code>version</code> per <code>(model_run_datetime_utc, id, interval_utc, duid, region, fuel_type)</code> survives. The gap <b>is</b> the dedup load.
+    </p>
+  </div>
+
+  <div class="step">
+    <div class="step-h"><span class="step-n">Step 2</span><span class="step-t">EXPLAIN the FINAL pipeline.</span></div>
+    <pre class="sql"><span class="kw">EXPLAIN</span> pipeline
+<span class="kw">SELECT</span> count() <span class="kw">FROM</span> datacapture.hkpug5ii1l25n <span class="kw">FINAL</span>;</pre>
+    <p class="expect">
+      Look for <code>ReplacingSorted</code> and <code>AggregatingTransform</code> stages. That's the sort-merge cost: every active part contributes a stream, all streams get merged on the key, dedup happens, then the count runs. Compare to the same query without <code>FINAL</code> — far fewer processor stages.
+    </p>
+  </div>
+
+  <div class="step">
+    <div class="step-h"><span class="step-n">Step 3</span><span class="step-t">Hit the read.* view (FINAL is inherited).</span></div>
+    <pre class="sql"><span class="kw">SELECT</span> count() <span class="kw">FROM</span> read.hkpug5ii1l25n;</pre>
+    <p class="expect">
+      Same cost as Step 1 — the view is <code>SELECT * FROM datacapture.hkpug5ii1l25n FINAL</code>. Every downstream consumer pays this. This is the production reality the project is built to fix.
+    </p>
+  </div>
+
+  <div class="step">
+    <div class="step-h"><span class="step-n">Step 4</span><span class="step-t">Time a realistic aggregation through FINAL.</span></div>
+    <pre class="sql"><span class="kw">SELECT</span>
+    region,
+    fuel_type,
+    avg(value_mw)  <span class="kw">AS</span> avg_mw,
+    count()        <span class="kw">AS</span> rows
+<span class="kw">FROM</span> read.hkpug5ii1l25n
+<span class="kw">GROUP BY</span> region, fuel_type
+<span class="kw">ORDER BY</span> avg_mw <span class="kw">DESC</span>;</pre>
+    <p class="expect">
+      Run it 3–4 times. Note <code>query_duration_ms</code> drifts a bit because of cache effects. The <b>average</b> across runs is what Grafana plots — open the Query Performance dashboard side by side.
+    </p>
+  </div>
+
+  <div class="step">
+    <div class="step-h"><span class="step-n">Step 5</span><span class="step-t">Which tables get hit by FINAL the most?</span></div>
+    <pre class="sql"><span class="kw">SELECT</span>
+    tables[<span class="lit">1</span>]                       <span class="kw">AS</span> table_name,
+    countIf(query <span class="kw">LIKE</span> <span class="lit">'%FINAL%'</span>)   <span class="kw">AS</span> final_queries,
+    count()                         <span class="kw">AS</span> total_queries,
+    avg(query_duration_ms)          <span class="kw">AS</span> avg_ms,
+    max(query_duration_ms)          <span class="kw">AS</span> max_ms
+<span class="kw">FROM</span> system.query_log
+<span class="kw">WHERE</span> event_date = today()
+  <span class="kw">AND</span> type = <span class="lit">'QueryFinish'</span>
+  <span class="kw">AND</span> length(tables) > <span class="lit">0</span>
+<span class="kw">GROUP BY</span> table_name
+<span class="kw">ORDER BY</span> final_queries <span class="kw">DESC</span>
+<span class="kw">LIMIT</span> <span class="lit">20</span>;</pre>
+    <p class="expect">
+      <b>This is the hit list.</b> Tables high in the list with high <code>avg_ms</code> are your dictionary candidates (if they're small/slowly-changing) or rollup candidates (if they're large/aggregable). Carry this list into <a href="02_create_dictionaries.html">exercise 02</a>.
+    </p>
+  </div>
+</section>
+
+<!-- ============ 3. SYSTEM TABLES ============ -->
+<section>
+  <div class="eyebrow"><b>3</b> · Prove it</div>
+  <h2>System tables to keep open alongside</h2>
+
+  <table>
+    <thead><tr><th>Question</th><th>Query</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>Per-query memory + duration</td>
+        <td><code>SELECT query_duration_ms, formatReadableSize(memory_usage) FROM system.query_log WHERE query ILIKE '%FINAL%' ORDER BY event_time DESC LIMIT 10</code></td>
+      </tr>
+      <tr>
+        <td>How many parts get merge-sorted?</td>
+        <td><code>SELECT count() FROM system.parts WHERE database = 'datacapture' AND table = 'hkpug5ii1l25n' AND active</code></td>
+      </tr>
+      <tr>
+        <td>Force a real merge to shrink the tax</td>
+        <td><code>OPTIMIZE TABLE datacapture.hkpug5ii1l25n FINAL</code> — then re-run Step 1. <b>Note: production-dangerous on huge tables.</b></td>
+      </tr>
+      <tr>
+        <td>Was a FINAL run parallelized?</td>
+        <td><code>SELECT ProfileEvents['SelectedParts'], ProfileEvents['MaxFinalThreadsUsed'] FROM system.query_log WHERE query_id = '...'</code></td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ============ 4. GOTCHAS ============ -->
+<section>
+  <div class="eyebrow"><b>4</b> · Gotchas</div>
+  <h2>What experts know that beginners don't</h2>
+
+  <div class="gotcha">
+    <span class="tag">Trap</span>
+    <b><code>OPTIMIZE TABLE … FINAL</code> "fixes" FINAL queries locally but is a lie at scale.</b> It rewrites every part — fine on 500k rows here, catastrophic on the 4.8B-row production version. If you run it in prod, set the calendar reminder for the merge to finish.
+  </div>
+
+  <div class="gotcha">
+    <span class="tag">Trap</span>
+    <b>Cache makes FINAL look faster than it is.</b> Drop the mark cache (<code>SYSTEM DROP MARK CACHE</code>) between runs when measuring. Otherwise you're benchmarking RAM access.
+  </div>
+
+  <div class="gotcha">
+    <span class="tag">Settings</span>
+    <b><code>do_not_merge_across_partitions_select_final = 1</code></b> and <b><code>max_final_threads</code></b> are the two settings that turn FINAL from "single-stream merge" into "per-partition parallel merge". On a partitioned table this is often a 4–8× speedup, free.
+  </div>
+
+  <div class="gotcha">
+    <span class="tag">Pattern</span>
+    <b>FINAL belongs in ad-hoc/exploration. It doesn't belong behind a dashboard.</b> Production dashboards should read a pre-deduplicated rollup or use <code>argMax</code> — covered in <a href="03_rewrite_with_dictionaries.html">exercise 03</a> and the lab's <a href="../../lab/docs/exercises/13_read_warfare.html">read warfare exercise</a>.
+  </div>
+</section>
+
+<!-- ============ 5. IN GRAFANA ============ -->
+<section>
+  <div class="eyebrow"><b>5</b> · In Grafana</div>
+  <h2>Where this shows up on the Query Performance dashboard</h2>
+  <p class="prose">Open <a href="http://localhost:3000">http://localhost:3000</a> → <b>Query Performance</b>. The dashboard is wired to <code>system.query_log</code>, so every step above will appear within seconds.</p>
+  <ul style="margin-left:22px;color:var(--dim);max-width:680px">
+    <li style="margin:6px 0"><b>Top tables by avg query duration</b> — the FINAL-heavy tables float to the top.</li>
+    <li style="margin:6px 0"><b>FINAL vs non-FINAL latency</b> — same query shape, two bars.</li>
+    <li style="margin:6px 0"><b>Memory by query type</b> — FINAL queries allocate more, by a lot, because the merge buffers live in RAM.</li>
+  </ul>
+</section>
+
+<!-- ============ 6. NEXT ============ -->
+<section>
+  <div class="eyebrow"><b>6</b> · Next</div>
+  <h2>Where to go from here</h2>
+  <div class="next">
+    <a href="02_create_dictionaries.html">
+      <div class="nx-eyebrow">Playground · 02</div>
+      <div class="nx-t">Create dictionaries for the §4a candidates →</div>
+    </a>
+    <a href="04_benchmark.html">
+      <div class="nx-eyebrow">Playground · 04</div>
+      <div class="nx-t">Side-by-side FINAL vs dictGet benchmark →</div>
+    </a>
+  </div>
+</section>
+
+<footer>
+  playground/exercises/01_understand_final.sql · part of clickhouse-playground
+</footer>
+
+</main>
+</body>
+</html>

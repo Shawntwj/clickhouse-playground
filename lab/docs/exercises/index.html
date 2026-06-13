@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lab exercises · ClickHouse Playground</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#16181d;--panel:#1e2128;--panel2:#23262e;--line:#31353f;--ink:#e8e6df;--dim:#989ca6;--faint:#6b7078;--yellow:#f5c518;--read:#5fa8ff;--danger:#ff5d52;--ok:#5ad08a;--mono:'IBM Plex Mono',ui-monospace,monospace;--disp:'Space Grotesk',sans-serif;--body:'Inter',system-ui,sans-serif}
+  *{box-sizing:border-box;margin:0;padding:0}body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.65}main{max-width:1100px;margin:0 auto;padding:0 20px 120px}a{color:var(--yellow);text-decoration:none}::selection{background:var(--yellow);color:#16181d}
+  header{padding:64px 0 40px;border-bottom:1px solid var(--line)}.crumb{font-family:var(--mono);font-size:13px;color:var(--faint)}.crumb b{color:var(--yellow);font-weight:500}.crumb a{color:var(--faint)}.crumb a:hover{color:var(--yellow)}
+  h1{font-family:var(--disp);font-weight:700;font-size:clamp(34px,5vw,52px);line-height:1.05;margin:14px 0;letter-spacing:-.02em}h1 .y{color:var(--yellow)}.lede{max-width:720px;color:var(--dim);font-size:17px}.lede b{color:var(--ink);font-weight:600}
+  section{padding:48px 0 8px;border-bottom:1px solid var(--line)}section:last-of-type{border-bottom:none}
+  .eyebrow{font-family:var(--mono);font-size:12.5px;color:var(--faint);margin-bottom:14px;letter-spacing:.04em;text-transform:uppercase}.eyebrow b{color:var(--yellow);font-weight:500}
+  h2{font-family:var(--disp);font-weight:700;font-size:clamp(22px,3vw,30px);letter-spacing:-.01em;margin-bottom:6px}
+  .desc{color:var(--dim);max-width:720px;margin-bottom:22px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:14px}
+  .card{display:block;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px 20px;transition:border-color .15s,transform .15s;text-decoration:none;color:var(--ink)}
+  .card:hover{border-color:var(--yellow);transform:translateY(-1px)}
+  .num{font-family:var(--mono);font-size:11px;color:var(--yellow);background:var(--panel2);padding:3px 8px;border-radius:4px;font-weight:600;margin-bottom:10px;display:inline-block}
+  .t{font-family:var(--disp);font-size:18px;font-weight:600;line-height:1.25;margin-bottom:6px}
+  .s{color:var(--dim);font-size:13.5px;line-height:1.5}
+  footer{margin-top:60px;padding-top:24px;border-top:1px solid var(--line);font-family:var(--mono);font-size:13px;color:var(--faint)}
+</style>
+</head>
+<body><main>
+
+<header>
+  <div class="crumb"><a href="../../../README.md">clickhouse-playground</a> / <a href="../../README.md">lab</a> / <b>exercises</b></div>
+  <h1>Lab <span class="y">exercises</span>.</h1>
+  <p class="lede">Seventeen exercises, four tracks. Start anywhere — each is self-contained — but the suggested route is top to bottom. Run <code>make up</code> and <code>make seed</code> first; everything else is in the prereqs of each page.</p>
+  <p class="lede" style="margin-top:14px"><b style="color:var(--ink)">First time here?</b> Read the <a href="../../../overview.html">overview</a> — it explains how ClickHouse works and why each exercise matters.</p>
+</header>
+
+<section>
+  <div class="eyebrow"><b>Fundamentals</b> · 01–07 · the schema and dataflow that drive ~90% of performance</div>
+  <div class="grid">
+    <a class="card" href="01_order_by.html">
+      <div class="num">01</div><div class="t">ORDER BY</div>
+      <div class="s">The biggest single optimization. Two tables, same query, ~100× gap.</div>
+    </a>
+    <a class="card" href="02_types_and_codecs.html">
+      <div class="num">02</div><div class="t">Types, LowCardinality, codecs</div>
+      <div class="s">Columns are files. Smaller files = faster everything.</div>
+    </a>
+    <a class="card" href="03_async_inserts.html">
+      <div class="num">03</div><div class="t">Async inserts</div>
+      <div class="s">Break the parts war on purpose, then fix it with one setting.</div>
+    </a>
+    <a class="card" href="04_dictionaries.html">
+      <div class="num">04</div><div class="t">Dictionaries</div>
+      <div class="s">Stop JOIN-ing your dimensions. dictGet is O(1).</div>
+    </a>
+    <a class="card" href="05_materialized_views.html">
+      <div class="num">05</div><div class="t">Materialized views</div>
+      <div class="s">Cheap real-time. MV is an INSERT trigger, not a cached query.</div>
+    </a>
+    <a class="card" href="06_query_tuning.html">
+      <div class="num">06</div><div class="t">Query tuning</div>
+      <div class="s">PREWHERE, skip indexes, projections.</div>
+    </a>
+    <a class="card" href="07_ttl_and_cost.html">
+      <div class="num">07</div><div class="t">TTL + rollups</div>
+      <div class="s">The fixed-box doctrine. Real-time without the cloud bill.</div>
+    </a>
+  </div>
+</section>
+
+<section>
+  <div class="eyebrow"><b>Expert</b> · 10–14 · what the engine looks like under stress</div>
+  <div class="grid">
+    <a class="card" href="10_engine_anatomy.html">
+      <div class="num">10</div><div class="t">Engine anatomy</div>
+      <div class="s">Parts on disk, granules, ProfileEvents, sampling profiler.</div>
+    </a>
+    <a class="card" href="11_merge_machine.html">
+      <div class="num">11</div><div class="t">The merge machine</div>
+      <div class="s">Break merges on purpose. Partition surgery. Mutations.</div>
+    </a>
+    <a class="card" href="12_ingestion_warfare.html">
+      <div class="num">12</div><div class="t">Ingestion warfare</div>
+      <div class="s">The throughput ladder. Null engine. Buffer engine.</div>
+    </a>
+    <a class="card" href="13_read_warfare.html">
+      <div class="num">13</div><div class="t">Read warfare</div>
+      <div class="s">Caches, in-order aggregation, sampling, three ways to dodge FINAL.</div>
+    </a>
+    <a class="card" href="14_isolation.html">
+      <div class="num">14</div><div class="t">Isolation</div>
+      <div class="s">Abuse-proof the box. The replacement for autoscaling.</div>
+    </a>
+  </div>
+</section>
+
+<section>
+  <div class="eyebrow"><b>Integrations</b> · 20–22 · every external system is just a table</div>
+  <div class="grid">
+    <a class="card" href="20_pull_anything.html">
+      <div class="num">20</div><div class="t">Pull anything</div>
+      <div class="s">Table functions: URL, S3, file, Postgres, remote CH.</div>
+    </a>
+    <a class="card" href="21_kafka_pipeline.html">
+      <div class="num">21</div><div class="t">Kafka pipeline</div>
+      <div class="s">Three CREATE statements. No consumer service.</div>
+    </a>
+    <a class="card" href="22_postgres_sync.html">
+      <div class="num">22</div><div class="t">Postgres sync</div>
+      <div class="s">Four escalating patterns — pick what your latency budget allows.</div>
+    </a>
+  </div>
+</section>
+
+<section>
+  <div class="eyebrow"><b>Domain</b> · 30–31 · finance &amp; ML, where CH happens to be world-class</div>
+  <div class="grid">
+    <a class="card" href="30_tick_store.html">
+      <div class="num">30</div><div class="t">Tick store</div>
+      <div class="s">Codecs for finance. OHLCV MV chains. ASOF JOIN.</div>
+    </a>
+    <a class="card" href="31_ml_features.html">
+      <div class="num">31</div><div class="t">ML features</div>
+      <div class="s">Feature factory + Parquet export + baseline models.</div>
+    </a>
+  </div>
+</section>
+
+<section>
+  <div class="eyebrow"><b>Cluster</b> · 40–45 · two CH nodes + Keeper, what changes when scale forces sharding · needs <code>make up-cluster</code></div>
+  <div class="grid">
+    <a class="card" href="40_cluster_setup.html">
+      <div class="num">40</div><div class="t">Cluster setup</div>
+      <div class="s">ON CLUSTER DDL, Keeper, per-node macros, the DDL queue.</div>
+    </a>
+    <a class="card" href="41_replicated_merge_tree.html">
+      <div class="num">41</div><div class="t">ReplicatedMergeTree</div>
+      <div class="s">HA + free insert dedup. Watch replication state in SQL.</div>
+    </a>
+    <a class="card" href="42_distributed_sharding.html">
+      <div class="num">42</div><div class="t">Distributed + sharding</div>
+      <div class="s">One logical table over N shards. Cross-shard JOIN, three fixes.</div>
+    </a>
+    <a class="card" href="44_observability.html">
+      <div class="num">44</div><div class="t">Cluster observability</div>
+      <div class="s">clusterAllReplicas() patterns for fleet-wide query_log + parts.</div>
+    </a>
+    <a class="card" href="45_sharded_final.html">
+      <div class="num">45</div><div class="t">Sharded FINAL is broken</div>
+      <div class="s">FINAL silently fails across shards. argMax becomes mandatory.</div>
+    </a>
+  </div>
+</section>
+
+<footer>lab/sql/01..31 · part of clickhouse-playground</footer>
+</main></body></html>

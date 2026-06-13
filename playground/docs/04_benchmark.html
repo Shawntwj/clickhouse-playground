@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Playground 04 · Benchmark — FINAL vs Dictionary, side by side</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#16181d;--panel:#1e2128;--panel2:#23262e;--line:#31353f;--ink:#e8e6df;--dim:#989ca6;--faint:#6b7078;--yellow:#f5c518;--read:#5fa8ff;--danger:#ff5d52;--ok:#5ad08a;--mono:'IBM Plex Mono',ui-monospace,monospace;--disp:'Space Grotesk',sans-serif;--body:'Inter',system-ui,sans-serif}
+  *{box-sizing:border-box;margin:0;padding:0}body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.65}main{max-width:980px;margin:0 auto;padding:0 20px 120px}a{color:var(--yellow)}::selection{background:var(--yellow);color:#16181d}
+  header{padding:64px 0 40px;border-bottom:1px solid var(--line)}.crumb{font-family:var(--mono);font-size:13px;color:var(--faint)}.crumb b{color:var(--yellow);font-weight:500}.crumb a{color:var(--faint);text-decoration:none}.crumb a:hover{color:var(--yellow)}
+  h1{font-family:var(--disp);font-weight:700;font-size:clamp(30px,5vw,46px);line-height:1.08;margin:14px 0;letter-spacing:-.02em}h1 .y{color:var(--yellow)}.lede{max-width:680px;color:var(--dim);font-size:17px}.lede b{color:var(--ink);font-weight:600}
+  .meta{display:flex;flex-wrap:wrap;gap:18px;margin-top:22px;font-family:var(--mono);font-size:12.5px;color:var(--faint)}.meta b{color:var(--ink);font-weight:500}
+  section{padding:48px 0 8px;border-bottom:1px solid var(--line)}section:last-of-type{border-bottom:none}
+  .eyebrow{font-family:var(--mono);font-size:12.5px;color:var(--faint);margin-bottom:10px;letter-spacing:.04em;text-transform:uppercase}.eyebrow b{color:var(--yellow);font-weight:500}
+  h2{font-family:var(--disp);font-weight:700;font-size:clamp(22px,3vw,28px);letter-spacing:-.01em;margin-bottom:14px}h3{font-family:var(--disp);font-weight:500;font-size:18px;margin:22px 0 8px}
+  p.prose{max-width:680px;color:var(--dim);margin-bottom:14px}p.prose b{color:var(--ink);font-weight:600}p.prose code,.inline{font-family:var(--mono);font-size:.88em;background:var(--panel2);padding:2px 6px;border-radius:4px;color:var(--ink)}
+  pre.sql,pre.shell,pre.diagram{font-family:var(--mono);font-size:13px;line-height:1.55;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:16px 18px;overflow-x:auto;margin:12px 0 14px;color:var(--ink);white-space:pre}
+  pre.shell{border-left:3px solid var(--read)}pre.sql{border-left:3px solid var(--yellow)}pre.diagram{border-left:3px solid var(--faint);color:var(--dim)}
+  pre .kw{color:var(--read)}pre .lit{color:var(--yellow)}pre .com{color:var(--faint);font-style:italic}pre .ok{color:var(--ok)}pre .bad{color:var(--danger)}
+  .step{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:20px 22px;margin:18px 0}.step-h{display:flex;flex-wrap:wrap;align-items:baseline;gap:10px;margin-bottom:6px}.step-n{font-family:var(--mono);font-size:11px;color:var(--yellow);background:var(--panel2);padding:3px 8px;border-radius:4px;font-weight:600}.step-t{font-family:var(--disp);font-size:17px;font-weight:600}
+  .expect{border-left:3px solid var(--ok);padding:6px 0 6px 14px;color:var(--dim);font-size:14.5px;margin:10px 0 0;max-width:660px}.expect b{color:var(--ink)}.expect .num{color:var(--yellow);font-family:var(--mono);font-weight:600}
+  .gotcha{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--danger);border-radius:8px;padding:14px 18px;margin:10px 0;color:var(--dim);max-width:720px}.gotcha b{color:var(--ink);font-weight:600}.gotcha .tag{font-family:var(--mono);font-size:11px;color:var(--danger);text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:4px}
+  .takeaway{border-left:3px solid var(--yellow);padding:6px 0 6px 16px;color:var(--ink);max-width:680px;margin:12px 0 0;font-size:15.5px}.takeaway b{color:var(--yellow)}
+  table{width:100%;border-collapse:collapse;font-size:14px;margin:12px 0 18px}th{font-family:var(--mono);font-size:11.5px;color:var(--faint);text-align:left;font-weight:500;padding:10px 12px;border-bottom:1px solid var(--line);text-transform:uppercase;letter-spacing:.04em}td{padding:10px 12px;border-bottom:1px solid var(--line);color:var(--dim);vertical-align:top}td code{font-family:var(--mono);font-size:.86em;color:var(--ink);background:var(--panel2);padding:2px 6px;border-radius:3px}tr td:first-child{color:var(--ink);font-weight:500}
+  .next{display:flex;flex-wrap:wrap;gap:14px;margin-top:18px}.next a{display:block;flex:1 1 280px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px 16px;text-decoration:none;color:var(--dim);transition:border-color .15s}.next a:hover{border-color:var(--yellow)}.next .nx-eyebrow{font-family:var(--mono);font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px}.next .nx-t{color:var(--ink);font-weight:600;font-size:15px}
+  footer{margin-top:60px;padding-top:24px;border-top:1px solid var(--line);font-family:var(--mono);font-size:13px;color:var(--faint)}
+</style>
+</head>
+<body><main>
+
+<header>
+  <div class="crumb"><a href="../../README.md">clickhouse-playground</a> / <a href="../README.md">playground</a> / <b>04 · benchmark</b></div>
+  <h1>Measure the gap. Then defend it in a <span class="y">review</span>.</h1>
+  <p class="lede">Two query shapes, one labeled for Grafana, then a single query against <code>system.query_log</code> that gives you ms, MB, and rows-read for both. This is the receipts you bring to a refactor PR.</p>
+  <div class="meta">
+    <span>File · <b>playground/exercises/04_benchmark.sql</b> + <b>playground/scripts/benchmark_final.sql</b></span>
+    <span>Reading · <b>~8 min</b></span>
+    <span>Level · <b>Validate</b></span>
+    <span>Prereq · <b>exercise 03 done</b></span>
+  </div>
+</header>
+
+<section>
+  <div class="eyebrow"><b>0</b> · The point</div>
+  <h2>Tag queries so the dashboard can sort them</h2>
+  <p class="prose">
+    ClickHouse records the raw SQL in <code>system.query_log</code>. Add a comment like <code>-- label: final_join</code> to each variant — the Grafana panels can then filter by that string and put the two approaches side by side.
+  </p>
+</section>
+
+<section>
+  <div class="eyebrow"><b>1</b> · Run it</div>
+  <h2>Two rounds, one comparison</h2>
+
+  <div class="step">
+    <div class="step-h"><span class="step-n">Round 1</span><span class="step-t">FINAL join (baseline).</span></div>
+    <pre class="sql"><span class="com">-- label: final_join</span>
+<span class="kw">SELECT</span>
+    toStartOfHour(d.interval_utc)     <span class="kw">AS</span> hour_utc,
+    d.region,
+    avg(d.value_mw)                   <span class="kw">AS</span> avg_mw,
+    any(h.holiday_name)               <span class="kw">AS</span> holiday_name
+<span class="kw">FROM</span> read.hkpug5ii1l25n d
+<span class="kw">LEFT JOIN</span> read.trading_holiday h
+    <span class="kw">ON</span> toDate(d.interval_utc) = h.date
+   <span class="kw">AND</span> d.region                = h.area
+   <span class="kw">AND</span> h.calendar              = <span class="lit">'AEMO'</span>
+<span class="kw">GROUP BY</span> hour_utc, d.region
+<span class="kw">ORDER BY</span> hour_utc <span class="kw">DESC</span>
+<span class="kw">LIMIT</span> <span class="lit">100</span>;</pre>
+  </div>
+
+  <div class="step">
+    <div class="step-h"><span class="step-n">Round 2</span><span class="step-t">Dictionary lookup (optimized).</span></div>
+    <pre class="sql"><span class="com">-- label: dict_lookup</span>
+<span class="kw">SELECT</span>
+    toStartOfHour(interval_utc)                                                        <span class="kw">AS</span> hour_utc,
+    region,
+    avg(value_mw)                                                                      <span class="kw">AS</span> avg_mw,
+    dictGetOrDefault(<span class="lit">'tech.trading_holiday_dict'</span>, <span class="lit">'holiday_name'</span>,
+        (toDate(interval_utc), region, <span class="lit">'AEMO'</span>), <span class="lit">''</span>)                                    <span class="kw">AS</span> holiday_name
+<span class="kw">FROM</span> read.hkpug5ii1l25n
+<span class="kw">GROUP BY</span> hour_utc, region, holiday_name
+<span class="kw">ORDER BY</span> hour_utc <span class="kw">DESC</span>
+<span class="kw">LIMIT</span> <span class="lit">100</span>;</pre>
+  </div>
+
+  <div class="step">
+    <div class="step-h"><span class="step-n">Compare</span><span class="step-t">One query against query_log.</span></div>
+    <p class="prose">Wait ~1 minute for both queries to finish and the log to settle, then:</p>
+    <pre class="sql"><span class="kw">SELECT</span>
+    if(query <span class="kw">LIKE</span> <span class="lit">'%final_join%'</span>,   <span class="lit">'final_join'</span>,
+       if(query <span class="kw">LIKE</span> <span class="lit">'%dict_lookup%'</span>, <span class="lit">'dict_lookup'</span>, <span class="lit">'other'</span>)) <span class="kw">AS</span> approach,
+    count()                       <span class="kw">AS</span> runs,
+    avg(query_duration_ms)        <span class="kw">AS</span> avg_ms,
+    min(query_duration_ms)        <span class="kw">AS</span> min_ms,
+    max(query_duration_ms)        <span class="kw">AS</span> max_ms,
+    avg(memory_usage) / <span class="lit">1e6</span>       <span class="kw">AS</span> avg_memory_mb,
+    avg(read_rows)                <span class="kw">AS</span> avg_rows_read
+<span class="kw">FROM</span> system.query_log
+<span class="kw">WHERE</span> event_date = today()
+  <span class="kw">AND</span> type    = <span class="lit">'QueryFinish'</span>
+  <span class="kw">AND</span> (query <span class="kw">LIKE</span> <span class="lit">'%final_join%'</span> <span class="kw">OR</span> query <span class="kw">LIKE</span> <span class="lit">'%dict_lookup%'</span>)
+<span class="kw">GROUP BY</span> approach
+<span class="kw">ORDER BY</span> approach;</pre>
+    <p class="expect">
+      Two rows. <code>dict_lookup</code> should win across the board:<br>
+      • <b>avg_ms</b>: typically 3–10× lower<br>
+      • <b>avg_memory_mb</b>: lower, often by ≥ 2× (no hash table for the JOIN)<br>
+      • <b>avg_rows_read</b>: the same for both (the fact table is the bottleneck) — but with FINAL it includes the JOIN's right side, which now disappears
+    </p>
+  </div>
+</section>
+
+<section>
+  <div class="eyebrow"><b>2</b> · Bonus — dictionary overhead</div>
+  <h2>The other side of the trade</h2>
+  <pre class="sql"><span class="kw">SELECT</span>
+    name,
+    status,
+    element_count,
+    round(bytes_allocated / <span class="lit">1e3</span>, <span class="lit">1</span>)   <span class="kw">AS</span> kb_in_memory,
+    load_duration_ms,
+    last_successful_update_time
+<span class="kw">FROM</span> system.dictionaries
+<span class="kw">ORDER BY</span> bytes_allocated <span class="kw">DESC</span>;</pre>
+  <p class="takeaway">
+    All three dictionaries together: <b>tens of KB of RAM</b>, single-millisecond load. The latency-vs-memory trade is laughably one-sided — and the dictionary keeps itself fresh via <code>LIFETIME</code>, no pipeline code needed.
+  </p>
+</section>
+
+<section>
+  <div class="eyebrow"><b>3</b> · The full benchmark script</div>
+  <h2>For when you want a longer run</h2>
+  <pre class="shell">make playground-bench
+<span class="com"># Runs playground/scripts/benchmark_final.sql — repeats both queries</span>
+<span class="com"># N times to average out cache effects, then prints the summary.</span></pre>
+</section>
+
+<section>
+  <div class="eyebrow"><b>4</b> · Gotchas</div>
+  <h2>What experts know</h2>
+  <div class="gotcha"><span class="tag">Trap</span>
+    <b>First-run latency lies.</b> The very first call may include a dictionary load. Discard the first sample or run a warmup query before measuring.
+  </div>
+  <div class="gotcha"><span class="tag">Trap</span>
+    <b>Cache effects favor the second query you run.</b> Drop the mark cache between rounds (<code>SYSTEM DROP MARK CACHE</code>) and alternate the order — measure each variant cold and warm.
+  </div>
+  <div class="gotcha"><span class="tag">Pattern</span>
+    <b>Bring the query_log table into your PR.</b> Real numbers from this query are unambiguous. "10× faster" lands harder than "should be faster".
+  </div>
+</section>
+
+<section>
+  <div class="eyebrow"><b>5</b> · Next</div>
+  <p class="prose">You've finished the playground track. Apply these to your highest-FINAL-traffic tables (the hit list from exercise 01), then explore the lab for the broader toolkit.</p>
+  <div class="next">
+    <a href="../README.md"><div class="nx-eyebrow">Playground</div><div class="nx-t">Back to playground README →</div></a>
+    <a href="../../lab/docs/exercises/13_read_warfare.html"><div class="nx-eyebrow">Lab · 13</div><div class="nx-t">More FINAL-dodging tricks (argMax, MV pre-dedup) →</div></a>
+  </div>
+</section>
+
+<footer>playground/exercises/04_benchmark.sql · part of clickhouse-playground</footer>
+</main></body></html>

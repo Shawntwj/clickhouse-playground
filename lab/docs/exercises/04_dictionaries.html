@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lab 04 · Dictionaries — kill your dimension JOINs</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#16181d;--panel:#1e2128;--panel2:#23262e;--line:#31353f;--ink:#e8e6df;--dim:#989ca6;--faint:#6b7078;--yellow:#f5c518;--read:#5fa8ff;--danger:#ff5d52;--ok:#5ad08a;--mono:'IBM Plex Mono',ui-monospace,monospace;--disp:'Space Grotesk',sans-serif;--body:'Inter',system-ui,sans-serif}
+  *{box-sizing:border-box;margin:0;padding:0}body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.65}main{max-width:980px;margin:0 auto;padding:0 20px 120px}a{color:var(--yellow)}::selection{background:var(--yellow);color:#16181d}
+  header{padding:64px 0 40px;border-bottom:1px solid var(--line)}.crumb{font-family:var(--mono);font-size:13px;color:var(--faint)}.crumb b{color:var(--yellow);font-weight:500}.crumb a{color:var(--faint);text-decoration:none}.crumb a:hover{color:var(--yellow)}
+  h1{font-family:var(--disp);font-weight:700;font-size:clamp(30px,5vw,46px);line-height:1.08;margin:14px 0;letter-spacing:-.02em}h1 .y{color:var(--yellow)}.lede{max-width:680px;color:var(--dim);font-size:17px}.lede b{color:var(--ink);font-weight:600}
+  .meta{display:flex;flex-wrap:wrap;gap:18px;margin-top:22px;font-family:var(--mono);font-size:12.5px;color:var(--faint)}.meta b{color:var(--ink);font-weight:500}
+  section{padding:48px 0 8px;border-bottom:1px solid var(--line)}section:last-of-type{border-bottom:none}
+  .eyebrow{font-family:var(--mono);font-size:12.5px;color:var(--faint);margin-bottom:10px;letter-spacing:.04em;text-transform:uppercase}.eyebrow b{color:var(--yellow);font-weight:500}
+  h2{font-family:var(--disp);font-weight:700;font-size:clamp(22px,3vw,28px);letter-spacing:-.01em;margin-bottom:14px}h3{font-family:var(--disp);font-weight:500;font-size:18px;margin:22px 0 8px}
+  p.prose{max-width:680px;color:var(--dim);margin-bottom:14px}p.prose b{color:var(--ink);font-weight:600}p.prose code,.inline{font-family:var(--mono);font-size:.88em;background:var(--panel2);padding:2px 6px;border-radius:4px;color:var(--ink)}
+  pre.sql,pre.shell,pre.diagram{font-family:var(--mono);font-size:13px;line-height:1.55;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:16px 18px;overflow-x:auto;margin:12px 0 14px;color:var(--ink);white-space:pre}
+  pre.shell{border-left:3px solid var(--read)}pre.sql{border-left:3px solid var(--yellow)}pre.diagram{border-left:3px solid var(--faint);color:var(--dim)}
+  pre .kw{color:var(--read)}pre .lit{color:var(--yellow)}pre .com{color:var(--faint);font-style:italic}pre .ok{color:var(--ok)}pre .bad{color:var(--danger)}
+  .step{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:20px 22px;margin:18px 0}.step-h{display:flex;flex-wrap:wrap;align-items:baseline;gap:10px;margin-bottom:6px}.step-n{font-family:var(--mono);font-size:11px;color:var(--yellow);background:var(--panel2);padding:3px 8px;border-radius:4px;font-weight:600}.step-t{font-family:var(--disp);font-size:17px;font-weight:600}
+  .expect{border-left:3px solid var(--ok);padding:6px 0 6px 14px;color:var(--dim);font-size:14.5px;margin:10px 0 0;max-width:660px}.expect b{color:var(--ink)}.expect .num{color:var(--yellow);font-family:var(--mono);font-weight:600}
+  .gotcha{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--danger);border-radius:8px;padding:14px 18px;margin:10px 0;color:var(--dim);max-width:720px}.gotcha b{color:var(--ink);font-weight:600}.gotcha .tag{font-family:var(--mono);font-size:11px;color:var(--danger);text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:4px}
+  .takeaway{border-left:3px solid var(--yellow);padding:6px 0 6px 16px;color:var(--ink);max-width:680px;margin:12px 0 0;font-size:15.5px}.takeaway b{color:var(--yellow)}
+  table{width:100%;border-collapse:collapse;font-size:14px;margin:12px 0 18px}th{font-family:var(--mono);font-size:11.5px;color:var(--faint);text-align:left;font-weight:500;padding:10px 12px;border-bottom:1px solid var(--line);text-transform:uppercase;letter-spacing:.04em}td{padding:10px 12px;border-bottom:1px solid var(--line);color:var(--dim);vertical-align:top}td code{font-family:var(--mono);font-size:.86em;color:var(--ink);background:var(--panel2);padding:2px 6px;border-radius:3px}tr td:first-child{color:var(--ink);font-weight:500}
+  .next{display:flex;flex-wrap:wrap;gap:14px;margin-top:18px}.next a{display:block;flex:1 1 280px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px 16px;text-decoration:none;color:var(--dim);transition:border-color .15s}.next a:hover{border-color:var(--yellow)}.next .nx-eyebrow{font-family:var(--mono);font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px}.next .nx-t{color:var(--ink);font-weight:600;font-size:15px}
+  footer{margin-top:60px;padding-top:24px;border-top:1px solid var(--line);font-family:var(--mono);font-size:13px;color:var(--faint)}
+</style>
+</head>
+<body><main>
+
+<header>
+  <div class="crumb"><a href="../../../README.md">clickhouse-playground</a> / <a href="../../README.md">lab</a> / <a href="index.html">exercises</a> / <b>04 · dictionaries</b></div>
+  <h1>Stop <span class="y">JOIN</span>ing your dimensions.</h1>
+  <p class="lede">A ClickHouse JOIN builds the right side in memory <b>per query</b>. A dictionary loads the dimension table into RAM <b>once</b>, refreshes on a schedule, and turns enrichment into an O(1) <code>dictGet()</code> call. For small slowly-changing tables (sites, customers, geo, feature flags) this is several times faster <i>and</i> uses less memory.</p>
+  <div class="meta">
+    <span>File · <b>lab/sql/04_dictionaries.sql</b></span>
+    <span>Reading · <b>~10 min</b></span>
+    <span>Level · <b>Fundamentals</b></span>
+    <span>Prereq · <b>make seed</b></span>
+  </div>
+</header>
+
+<section>
+  <div class="eyebrow"><b>0</b> · The point</div>
+  <h2>Why JOIN keeps disappointing you</h2>
+  <p class="prose">
+    Every JOIN rebuilds the hash table for the right side every single query. With a 500-row dimension that's fine in isolation — but on a busy dashboard with 50 panels each filtering by tier or country, you've now hashed the same 500 rows 50 times. Dictionaries hash once, at load time, then live in RAM until <code>LIFETIME</code> expires.
+  </p>
+  <p class="takeaway"><b>Mental shift:</b> stop treating dimensions as tables. Treat them as <b>functions</b> you call from the fact table.</p>
+</section>
+
+<section>
+  <div class="eyebrow"><b>1</b> · Mental model</div>
+  <h2>JOIN vs dictGet, mechanically</h2>
+  <pre class="diagram"><span class="bad">JOIN — every query pays</span>
+
+  query 1:  read lab.sites → hash table in RAM → probe 20M rows
+  query 2:  read lab.sites → hash table in RAM → probe 20M rows
+  query 3:  read lab.sites → hash table in RAM → probe 20M rows
+            ^^^^^^^^^^^^^^   ^^^^^^^^^^^^^^^^^
+            disk + parse     allocate every time
+
+
+<span class="ok">dictGet — load once, lookups are function calls</span>
+
+  load (once):  read lab.sites → hash into dictionary memory
+                LIFETIME timer running...
+
+  query 1:  20M rows × dictGet('sites_dict', 'tier', site_id)  ← O(1)
+  query 2:  20M rows × dictGet('sites_dict', 'tier', site_id)  ← O(1)
+  query 3:  20M rows × dictGet('sites_dict', 'tier', site_id)  ← O(1)
+
+  refresh (background):  on LIFETIME expiry, ClickHouse re-polls source</pre>
+</section>
+
+<section>
+  <div class="eyebrow"><b>2</b> · Run it</div>
+  <h2>The exercise</h2>
+
+  <div class="step">
+    <div class="step-h"><span class="step-n">Step 1</span><span class="step-t">Build a tiny dimension table.</span></div>
+    <pre class="sql"><span class="kw">CREATE TABLE</span> lab.sites
+(
+    site_id <span class="kw">UInt16</span>,
+    name    <span class="kw">String</span>,
+    tier    <span class="kw">LowCardinality</span>(<span class="kw">String</span>),
+    owner   <span class="kw">String</span>
+)
+<span class="kw">ENGINE</span> = MergeTree <span class="kw">ORDER BY</span> site_id;
+
+<span class="kw">INSERT INTO</span> lab.sites
+<span class="kw">SELECT</span>
+    number                                            <span class="kw">AS</span> site_id,
+    concat(<span class="lit">'site_'</span>, toString(number))                 <span class="kw">AS</span> name,
+    [<span class="lit">'free'</span>,<span class="lit">'pro'</span>,<span class="lit">'enterprise'</span>][<span class="lit">1</span> + number % <span class="lit">3</span>]       <span class="kw">AS</span> tier,
+    concat(<span class="lit">'team_'</span>, toString(number % <span class="lit">20</span>))            <span class="kw">AS</span> owner
+<span class="kw">FROM</span> numbers(<span class="lit">500</span>);</pre>
+  </div>
+
+  <div class="step">
+    <div class="step-h"><span class="step-n">Step 2</span><span class="step-t">Wrap it as a dictionary.</span></div>
+    <pre class="sql"><span class="kw">CREATE DICTIONARY</span> lab.sites_dict
+(
+    site_id <span class="kw">UInt16</span>,
+    name    <span class="kw">String</span>,
+    tier    <span class="kw">String</span>,
+    owner   <span class="kw">String</span>
+)
+<span class="kw">PRIMARY KEY</span> site_id
+<span class="kw">SOURCE</span>(<span class="kw">CLICKHOUSE</span>(<span class="kw">DB</span> <span class="lit">'lab'</span> <span class="kw">TABLE</span> <span class="lit">'sites'</span> <span class="kw">USER</span> <span class="lit">'admin'</span> <span class="kw">PASSWORD</span> <span class="lit">'admin'</span>))
+<span class="kw">LAYOUT</span>(<span class="kw">HASHED</span>())          <span class="com">-- all in RAM, hashed by key. CACHE() for huge sources.</span>
+<span class="kw">LIFETIME</span>(<span class="kw">MIN</span> <span class="lit">60</span> <span class="kw">MAX</span> <span class="lit">120</span>); <span class="com">-- re-poll every 60-120s → near-real-time dim updates</span></pre>
+  </div>
+
+  <div class="step">
+    <div class="step-h"><span class="step-n">Step 3</span><span class="step-t">Benchmark — JOIN vs dictGet on 20M rows.</span></div>
+    <pre class="sql"><span class="com">-- 1) Classic JOIN</span>
+<span class="kw">SELECT</span> s.tier, count() <span class="kw">AS</span> events, quantile(<span class="lit">0.95</span>)(duration_ms) <span class="kw">AS</span> p95
+<span class="kw">FROM</span> lab.events e
+<span class="kw">INNER JOIN</span> lab.sites s <span class="kw">ON</span> e.site_id = s.site_id
+<span class="kw">GROUP BY</span> s.tier;
+
+<span class="com">-- 2) dictGet</span>
+<span class="kw">SELECT</span> dictGet(<span class="lit">'lab.sites_dict'</span>, <span class="lit">'tier'</span>, toUInt64(site_id)) <span class="kw">AS</span> tier,
+       count() <span class="kw">AS</span> events,
+       quantile(<span class="lit">0.95</span>)(duration_ms) <span class="kw">AS</span> p95
+<span class="kw">FROM</span> lab.events
+<span class="kw">GROUP BY</span> tier;</pre>
+    <p class="expect">
+      <b>Expect:</b> <code>dictGet</code> typically <span class="num">3–10×</span> faster on this dataset, <i>and</i> uses less memory. Confirm with:
+    </p>
+    <pre class="sql"><span class="kw">SELECT</span> query_duration_ms, formatReadableSize(memory_usage) <span class="kw">AS</span> mem,
+       substring(query, <span class="lit">1</span>, <span class="lit">60</span>) <span class="kw">AS</span> q
+<span class="kw">FROM</span> system.query_log
+<span class="kw">WHERE</span> type = <span class="lit">'QueryFinish'</span> <span class="kw">AND</span> query <span class="kw">ILIKE</span> <span class="lit">'%tier%'</span> <span class="kw">AND</span> query_kind = <span class="lit">'Select'</span>
+<span class="kw">ORDER BY</span> event_time <span class="kw">DESC</span> <span class="kw">LIMIT</span> <span class="lit">4</span>;</pre>
+  </div>
+
+  <div class="step">
+    <div class="step-h"><span class="step-n">Step 4</span><span class="step-t">Watch auto-refresh.</span></div>
+    <p class="prose">Update a row in the source table and wait ~2 minutes (or force it):</p>
+    <pre class="sql"><span class="kw">INSERT INTO</span> lab.sites <span class="kw">VALUES</span> (<span class="lit">1</span>, <span class="lit">'site_1'</span>, <span class="lit">'enterprise'</span>, <span class="lit">'team_1'</span>);
+
+<span class="com">-- force immediate reload:</span>
+<span class="kw">SYSTEM RELOAD DICTIONARY</span> lab.sites_dict;
+
+<span class="kw">SELECT</span> dictGet(<span class="lit">'lab.sites_dict'</span>, <span class="lit">'tier'</span>, toUInt64(<span class="lit">1</span>));   <span class="com">-- 'enterprise'</span></pre>
+    <p class="expect">
+      The dictionary tracks the source. You just built near-real-time dimension sync with one DDL statement and zero pipeline code.
+    </p>
+  </div>
+</section>
+
+<section>
+  <div class="eyebrow"><b>3</b> · Layout choice</div>
+  <h2>Which layout for which source</h2>
+  <table>
+    <thead><tr><th>Layout</th><th>Best for</th><th>Trade-off</th></tr></thead>
+    <tbody>
+      <tr><td><code>HASHED</code></td><td>Single key, fits in RAM (default for small dims)</td><td>Whole table in RAM; reload re-reads everything.</td></tr>
+      <tr><td><code>COMPLEX_KEY_HASHED</code></td><td>Multi-column key (e.g. date+area+calendar)</td><td>Pass key as tuple: <code>(date, 'NSW', 'AEMO')</code>.</td></tr>
+      <tr><td><code>FLAT</code></td><td>Tiny dense integer keys (e.g. 0..1000)</td><td>Fastest, but key space must be small.</td></tr>
+      <tr><td><code>CACHE</code> / <code>COMPLEX_KEY_CACHE</code></td><td>Source too big for RAM; only some keys hot</td><td>LRU cache, misses hit source — slower under pressure.</td></tr>
+      <tr><td><code>RANGE_HASHED</code></td><td>Range-keyed lookups (history of prices, etc.)</td><td>Specialty layout, niche use cases.</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section>
+  <div class="eyebrow"><b>4</b> · Gotchas</div>
+  <h2>What experts know</h2>
+  <div class="gotcha"><span class="tag">Trap</span>
+    <b>The dictionary key type is fixed at <code>UInt64</code> for simple keys.</b> If your source has <code>UInt16 site_id</code>, you must <code>toUInt64(site_id)</code> when calling <code>dictGet</code>. Type mismatch = silent zero results.
+  </div>
+  <div class="gotcha"><span class="tag">Trap</span>
+    <b>Use <code>dictGetOrDefault</code>, not <code>dictGet</code>, in any analytical query.</b> Missing keys return zero/empty silently with <code>dictGet</code>; <code>dictGetOrDefault</code> lets you supply a sentinel and inspect misses later.
+  </div>
+  <div class="gotcha"><span class="tag">Pattern</span>
+    <b>External sources work the same.</b> Postgres, MySQL, MongoDB, Redis, an HTTP endpoint — anything ClickHouse can read. See <a href="22_postgres_sync.html">exercise 22</a> for a Postgres-sourced dict.
+  </div>
+  <div class="gotcha"><span class="tag">Settings</span>
+    <b><code>LIFETIME(MIN 0 MAX 0)</code></b> = never auto-refresh; you reload manually with <code>SYSTEM RELOAD DICTIONARY</code>. Useful when the source rarely changes and you want determinism.
+  </div>
+</section>
+
+<section>
+  <div class="eyebrow"><b>5</b> · Prove it</div>
+  <h2>System tables to inspect</h2>
+  <table>
+    <thead><tr><th>Question</th><th>Query</th></tr></thead>
+    <tbody>
+      <tr><td>Dictionary status + RAM</td><td><code>SELECT name, status, element_count, formatReadableSize(bytes_allocated) FROM system.dictionaries</code></td></tr>
+      <tr><td>When did it last refresh?</td><td><code>SELECT name, last_successful_update_time, loading_duration FROM system.dictionaries</code></td></tr>
+      <tr><td>Cache layout: hit rate</td><td><code>SELECT name, found_rate FROM system.dictionaries WHERE type LIKE 'Cache%'</code></td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section>
+  <div class="eyebrow"><b>6</b> · Next</div>
+  <div class="next">
+    <a href="05_materialized_views.html"><div class="nx-eyebrow">Lab · 05</div><div class="nx-t">Materialized views: cheap real-time →</div></a>
+    <a href="22_postgres_sync.html"><div class="nx-eyebrow">Lab · 22</div><div class="nx-t">Postgres-sourced dictionary →</div></a>
+  </div>
+</section>
+
+<footer>lab/sql/04_dictionaries.sql · part of clickhouse-playground</footer>
+</main></body></html>

@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lab 07 · TTL + rollups — real-time on a fixed-size box</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#16181d;--panel:#1e2128;--panel2:#23262e;--line:#31353f;--ink:#e8e6df;--dim:#989ca6;--faint:#6b7078;--yellow:#f5c518;--read:#5fa8ff;--danger:#ff5d52;--ok:#5ad08a;--mono:'IBM Plex Mono',ui-monospace,monospace;--disp:'Space Grotesk',sans-serif;--body:'Inter',system-ui,sans-serif}
+  *{box-sizing:border-box;margin:0;padding:0}body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.65}main{max-width:980px;margin:0 auto;padding:0 20px 120px}a{color:var(--yellow)}::selection{background:var(--yellow);color:#16181d}
+  header{padding:64px 0 40px;border-bottom:1px solid var(--line)}.crumb{font-family:var(--mono);font-size:13px;color:var(--faint)}.crumb b{color:var(--yellow);font-weight:500}.crumb a{color:var(--faint);text-decoration:none}.crumb a:hover{color:var(--yellow)}
+  h1{font-family:var(--disp);font-weight:700;font-size:clamp(30px,5vw,46px);line-height:1.08;margin:14px 0;letter-spacing:-.02em}h1 .y{color:var(--yellow)}.lede{max-width:680px;color:var(--dim);font-size:17px}.lede b{color:var(--ink);font-weight:600}
+  .meta{display:flex;flex-wrap:wrap;gap:18px;margin-top:22px;font-family:var(--mono);font-size:12.5px;color:var(--faint)}.meta b{color:var(--ink);font-weight:500}
+  section{padding:48px 0 8px;border-bottom:1px solid var(--line)}section:last-of-type{border-bottom:none}
+  .eyebrow{font-family:var(--mono);font-size:12.5px;color:var(--faint);margin-bottom:10px;letter-spacing:.04em;text-transform:uppercase}.eyebrow b{color:var(--yellow);font-weight:500}
+  h2{font-family:var(--disp);font-weight:700;font-size:clamp(22px,3vw,28px);letter-spacing:-.01em;margin-bottom:14px}h3{font-family:var(--disp);font-weight:500;font-size:18px;margin:22px 0 8px}
+  p.prose{max-width:680px;color:var(--dim);margin-bottom:14px}p.prose b{color:var(--ink);font-weight:600}p.prose code,.inline{font-family:var(--mono);font-size:.88em;background:var(--panel2);padding:2px 6px;border-radius:4px;color:var(--ink)}
+  pre.sql,pre.shell,pre.diagram{font-family:var(--mono);font-size:13px;line-height:1.55;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:16px 18px;overflow-x:auto;margin:12px 0 14px;color:var(--ink);white-space:pre}
+  pre.shell{border-left:3px solid var(--read)}pre.sql{border-left:3px solid var(--yellow)}pre.diagram{border-left:3px solid var(--faint);color:var(--dim)}
+  pre .kw{color:var(--read)}pre .lit{color:var(--yellow)}pre .com{color:var(--faint);font-style:italic}pre .ok{color:var(--ok)}pre .bad{color:var(--danger)}
+  .step{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:20px 22px;margin:18px 0}.step-h{display:flex;flex-wrap:wrap;align-items:baseline;gap:10px;margin-bottom:6px}.step-n{font-family:var(--mono);font-size:11px;color:var(--yellow);background:var(--panel2);padding:3px 8px;border-radius:4px;font-weight:600}.step-t{font-family:var(--disp);font-size:17px;font-weight:600}
+  .expect{border-left:3px solid var(--ok);padding:6px 0 6px 14px;color:var(--dim);font-size:14.5px;margin:10px 0 0;max-width:660px}.expect b{color:var(--ink)}.expect .num{color:var(--yellow);font-family:var(--mono);font-weight:600}
+  .gotcha{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--danger);border-radius:8px;padding:14px 18px;margin:10px 0;color:var(--dim);max-width:720px}.gotcha b{color:var(--ink);font-weight:600}.gotcha .tag{font-family:var(--mono);font-size:11px;color:var(--danger);text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:4px}
+  .takeaway{border-left:3px solid var(--yellow);padding:6px 0 6px 16px;color:var(--ink);max-width:680px;margin:12px 0 0;font-size:15.5px}.takeaway b{color:var(--yellow)}
+  table{width:100%;border-collapse:collapse;font-size:14px;margin:12px 0 18px}th{font-family:var(--mono);font-size:11.5px;color:var(--faint);text-align:left;font-weight:500;padding:10px 12px;border-bottom:1px solid var(--line);text-transform:uppercase;letter-spacing:.04em}td{padding:10px 12px;border-bottom:1px solid var(--line);color:var(--dim);vertical-align:top}td code{font-family:var(--mono);font-size:.86em;color:var(--ink);background:var(--panel2);padding:2px 6px;border-radius:3px}tr td:first-child{color:var(--ink);font-weight:500}
+  .next{display:flex;flex-wrap:wrap;gap:14px;margin-top:18px}.next a{display:block;flex:1 1 280px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px 16px;text-decoration:none;color:var(--dim);transition:border-color .15s}.next a:hover{border-color:var(--yellow)}.next .nx-eyebrow{font-family:var(--mono);font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px}.next .nx-t{color:var(--ink);font-weight:600;font-size:15px}
+  footer{margin-top:60px;padding-top:24px;border-top:1px solid var(--line);font-family:var(--mono);font-size:13px;color:var(--faint)}
+</style>
+</head>
+<body><main>
+
+<header>
+  <div class="crumb"><a href="../../../README.md">clickhouse-playground</a> / <a href="../../README.md">lab</a> / <a href="index.html">exercises</a> / <b>07 · ttl_and_cost</b></div>
+  <h1>The <span class="y">fixed-box doctrine</span>.</h1>
+  <p class="lede">Autoscaling cloud bills exist because raw data grows forever, scans grow forever, and the cluster grows with them. The self-hosted answer: <b>raw data is a short-lived buffer</b>, <b>rollups are the long-term product</b>, dashboards read rollups behind a query cache. One well-sized box has a known worst case — which is the thing autoscaling charges you to avoid knowing.</p>
+  <div class="meta">
+    <span>File · <b>lab/sql/07_ttl_and_cost.sql</b></span>
+    <span>Reading · <b>~10 min</b></span>
+    <span>Level · <b>Fundamentals</b></span>
+    <span>Prereq · <b>exercises 03 (firehose) + 05 (events_1m)</b></span>
+  </div>
+</header>
+
+<section>
+  <div class="eyebrow"><b>0</b> · The point</div>
+  <h2>The autoscaling trap, in one diagram</h2>
+  <pre class="diagram"><span class="bad">Without TTL:</span>
+  raw data ──► grows forever ──► dashboards scan more ──► CPU/IO peaks ──► autoscale up ──► $$$
+
+<span class="ok">With TTL + rollups:</span>
+              hot, small, fast
+  raw events ───► TTL 7 days, recompress at 1 day
+       │
+       └──MVs──► minute rollup  ─ TTL 13 months   ─┐
+                hour rollup    ─ TTL 5 years      ├──► dashboards read THIS
+                day rollup     ─ TTL forever      ─┘
+                                                       constant cost as traffic grows</pre>
+  <p class="takeaway"><b>The math (from this lab):</b> 20M events/day × ~20 bytes compressed = ~400 MB/day raw. 7-day retention = ~3 GB. 1-minute rollup is a few MB/day. A 4–8 GB box handles this with the 4G memory cap in <code>docker-compose.yml</code>.</p>
+</section>
+
+<section>
+  <div class="eyebrow"><b>1</b> · Run it</div>
+  <h2>The exercise</h2>
+
+  <div class="step">
+    <div class="step-h"><span class="step-n">Step 1</span><span class="step-t">Set the basic TTLs.</span></div>
+    <pre class="sql"><span class="com">-- Raw data: keep 7 days, then drop.</span>
+<span class="kw">ALTER TABLE</span> lab.firehose <span class="kw">MODIFY TTL</span> event_time + <span class="kw">INTERVAL</span> <span class="lit">7</span> <span class="kw">DAY</span>;
+
+<span class="com">-- Rollup: keep 13 months.</span>
+<span class="kw">ALTER TABLE</span> lab.events_1m <span class="kw">MODIFY TTL</span> minute + <span class="kw">INTERVAL</span> <span class="lit">13</span> <span class="kw">MONTH</span>;</pre>
+  </div>
+
+  <div class="step">
+    <div class="step-h"><span class="step-n">Step 2</span><span class="step-t">Recompress old data instead of dropping.</span></div>
+    <pre class="sql"><span class="kw">ALTER TABLE</span> lab.firehose <span class="kw">MODIFY TTL</span>
+    event_time + <span class="kw">INTERVAL</span> <span class="lit">1</span> <span class="kw">DAY</span> <span class="kw">RECOMPRESS</span> <span class="kw">CODEC</span>(ZSTD(<span class="lit">6</span>)),
+    event_time + <span class="kw">INTERVAL</span> <span class="lit">7</span> <span class="kw">DAY</span> <span class="kw">DELETE</span>;</pre>
+    <p class="prose">Recent data lives under fast/light <code>LZ4</code>. After 1 day, parts get rewritten with heavier <code>ZSTD(6)</code> — slower decompress but smaller on disk. After 7 days, deleted. Two TTL clauses, one table.</p>
+  </div>
+
+  <div class="step">
+    <div class="step-h"><span class="step-n">Step 3</span><span class="step-t">Column-level TTL — drop heavy columns first.</span></div>
+    <pre class="sql"><span class="kw">ALTER TABLE</span> lab.firehose <span class="kw">MODIFY COLUMN</span> url
+    <span class="kw">LowCardinality</span>(<span class="kw">String</span>) <span class="kw">TTL</span> event_time + <span class="kw">INTERVAL</span> <span class="lit">2</span> <span class="kw">DAY</span>;</pre>
+    <p class="prose">Keep the row, but drop the heaviest column after 2 days. URL becomes <code>NULL</code>/empty; everything else (counts, latencies) stays queryable.</p>
+  </div>
+
+  <div class="step">
+    <div class="step-h"><span class="step-n">Step 4</span><span class="step-t">Tiered storage (sketch — needs storage policy config).</span></div>
+    <pre class="sql"><span class="com">-- Production pattern: hot data on NVMe, cold on S3.</span>
+<span class="kw">ALTER TABLE</span> lab.firehose <span class="kw">MODIFY TTL</span>
+    event_time + <span class="kw">INTERVAL</span> <span class="lit">3</span> <span class="kw">DAY</span> <span class="kw">TO VOLUME</span> <span class="lit">'cold'</span>;</pre>
+    <p class="prose">Requires a <code>storage_policy</code> with two volumes (hot/cold) in <code>config.xml</code>. Once configured, parts older than 3 days physically move to S3-backed cold storage — queries still work, just slower. Routinely replaces autoscaling clusters for dashboard workloads.</p>
+  </div>
+
+  <div class="step">
+    <div class="step-h"><span class="step-n">Step 5</span><span class="step-t">Force TTL evaluation now.</span></div>
+    <pre class="sql"><span class="kw">OPTIMIZE TABLE</span> lab.firehose <span class="kw">FINAL</span>;
+
+<span class="com">-- Verify the oldest data dropped:</span>
+<span class="kw">SELECT</span> table, min(min_date) <span class="kw">AS</span> oldest, max(max_date) <span class="kw">AS</span> newest, sum(rows) <span class="kw">AS</span> rows
+<span class="kw">FROM</span> system.parts
+<span class="kw">WHERE</span> database = <span class="lit">'lab'</span> <span class="kw">AND</span> active
+<span class="kw">GROUP BY</span> table;</pre>
+  </div>
+</section>
+
+<section>
+  <div class="eyebrow"><b>2</b> · The doctrine</div>
+  <h2>The four-line memorization for keeping a fixed box healthy</h2>
+  <ol style="margin-left:22px;color:var(--dim);max-width:680px">
+    <li style="margin:10px 0"><b>Ingestion path gets reserved capacity</b> (threads, memory). It must never compete with reads. <a href="14_isolation.html">→ ex. 14</a></li>
+    <li style="margin:10px 0"><b>Every human/service gets a profile</b> with memory + time + thread caps. One analyst can't OOM the box.</li>
+    <li style="margin:10px 0"><b>Dashboards read rollups behind the query cache.</b> 20 Grafana users × 10 s refresh = 1 real query per cache TTL, not 120.</li>
+    <li style="margin:10px 0"><b>Raw data has a TTL.</b> Disks fill on schedule, not by surprise.</li>
+  </ol>
+  <p class="takeaway"><b>With these four, your worst case is known.</b> That's the thing autoscaling charges you to avoid knowing.</p>
+</section>
+
+<section>
+  <div class="eyebrow"><b>3</b> · Gotchas</div>
+  <h2>What experts know</h2>
+  <div class="gotcha"><span class="tag">Trap</span>
+    <b>TTL is evaluated on merge, not on schedule.</b> A table with few writes may keep dead rows for a long time. <code>OPTIMIZE … FINAL</code> on the partition forces it, but is expensive on huge tables — schedule a per-partition optimize for old data.
+  </div>
+  <div class="gotcha"><span class="tag">Trap</span>
+    <b>TTL on a column with a DEFAULT silently zeros out values, doesn't remove the column.</b> The storage shrinks only modestly. Use row-level TTL for actual size reduction; column TTL is for "I don't care about this data anymore" UX.
+  </div>
+  <div class="gotcha"><span class="tag">Pattern</span>
+    <b><code>TTL … GROUP BY</code></b> aggregates rows instead of deleting them — built-in tiered rollup without a separate MV. Use sparingly; one MV chain is usually clearer.
+  </div>
+</section>
+
+<section>
+  <div class="eyebrow"><b>4</b> · Prove it</div>
+  <table>
+    <thead><tr><th>Question</th><th>Query</th></tr></thead>
+    <tbody>
+      <tr><td>What TTL rules does a table have?</td><td><code>SELECT name, engine_full FROM system.tables WHERE database='lab' AND name='firehose'</code></td></tr>
+      <tr><td>How big is each table on disk?</td><td><code>SELECT table, formatReadableSize(sum(bytes_on_disk)) FROM system.parts WHERE database='lab' AND active GROUP BY table</code></td></tr>
+      <tr><td>Compression by codec</td><td><code>SELECT name, compression_codec, sum(rows), formatReadableSize(sum(data_compressed_bytes)) FROM system.parts_columns WHERE table='firehose' GROUP BY name, compression_codec</code></td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section>
+  <div class="eyebrow"><b>5</b> · Next</div>
+  <p class="prose"><b>You've completed the fundamentals track.</b> The expert series picks up the same machine and asks: what does it look like under stress?</p>
+  <div class="next">
+    <a href="10_engine_anatomy.html"><div class="nx-eyebrow">Lab · 10 (expert)</div><div class="nx-t">Engine anatomy: see it on disk →</div></a>
+    <a href="14_isolation.html"><div class="nx-eyebrow">Lab · 14 (expert)</div><div class="nx-t">Isolation: abuse-proof the box →</div></a>
+  </div>
+</section>
+
+<footer>lab/sql/07_ttl_and_cost.sql · part of clickhouse-playground</footer>
+</main></body></html>

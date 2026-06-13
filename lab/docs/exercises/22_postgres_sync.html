@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lab 22 · Postgres sync — OLTP in, analytics out</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#16181d;--panel:#1e2128;--panel2:#23262e;--line:#31353f;--ink:#e8e6df;--dim:#989ca6;--faint:#6b7078;--yellow:#f5c518;--read:#5fa8ff;--danger:#ff5d52;--ok:#5ad08a;--mono:'IBM Plex Mono',ui-monospace,monospace;--disp:'Space Grotesk',sans-serif;--body:'Inter',system-ui,sans-serif}
+  *{box-sizing:border-box;margin:0;padding:0}body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.65}main{max-width:980px;margin:0 auto;padding:0 20px 120px}a{color:var(--yellow)}::selection{background:var(--yellow);color:#16181d}
+  header{padding:64px 0 40px;border-bottom:1px solid var(--line)}.crumb{font-family:var(--mono);font-size:13px;color:var(--faint)}.crumb b{color:var(--yellow);font-weight:500}.crumb a{color:var(--faint);text-decoration:none}.crumb a:hover{color:var(--yellow)}
+  h1{font-family:var(--disp);font-weight:700;font-size:clamp(30px,5vw,46px);line-height:1.08;margin:14px 0;letter-spacing:-.02em}h1 .y{color:var(--yellow)}.lede{max-width:680px;color:var(--dim);font-size:17px}.lede b{color:var(--ink);font-weight:600}
+  .meta{display:flex;flex-wrap:wrap;gap:18px;margin-top:22px;font-family:var(--mono);font-size:12.5px;color:var(--faint)}.meta b{color:var(--ink);font-weight:500}
+  section{padding:48px 0 8px;border-bottom:1px solid var(--line)}section:last-of-type{border-bottom:none}
+  .eyebrow{font-family:var(--mono);font-size:12.5px;color:var(--faint);margin-bottom:10px;letter-spacing:.04em;text-transform:uppercase}.eyebrow b{color:var(--yellow);font-weight:500}
+  h2{font-family:var(--disp);font-weight:700;font-size:clamp(22px,3vw,28px);letter-spacing:-.01em;margin-bottom:14px}h3{font-family:var(--disp);font-weight:500;font-size:18px;margin:22px 0 8px}
+  p.prose{max-width:680px;color:var(--dim);margin-bottom:14px}p.prose b{color:var(--ink);font-weight:600}p.prose code,.inline{font-family:var(--mono);font-size:.88em;background:var(--panel2);padding:2px 6px;border-radius:4px;color:var(--ink)}
+  pre.sql,pre.shell,pre.diagram{font-family:var(--mono);font-size:13px;line-height:1.55;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:16px 18px;overflow-x:auto;margin:12px 0 14px;color:var(--ink);white-space:pre}
+  pre.shell{border-left:3px solid var(--read)}pre.sql{border-left:3px solid var(--yellow)}pre.diagram{border-left:3px solid var(--faint);color:var(--dim)}
+  pre .kw{color:var(--read)}pre .lit{color:var(--yellow)}pre .com{color:var(--faint);font-style:italic}pre .ok{color:var(--ok)}pre .bad{color:var(--danger)}
+  .step{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:20px 22px;margin:18px 0}.step-h{display:flex;flex-wrap:wrap;align-items:baseline;gap:10px;margin-bottom:6px}.step-n{font-family:var(--mono);font-size:11px;color:var(--yellow);background:var(--panel2);padding:3px 8px;border-radius:4px;font-weight:600}.step-t{font-family:var(--disp);font-size:17px;font-weight:600}
+  .expect{border-left:3px solid var(--ok);padding:6px 0 6px 14px;color:var(--dim);font-size:14.5px;margin:10px 0 0;max-width:660px}.expect b{color:var(--ink)}.expect .num{color:var(--yellow);font-family:var(--mono);font-weight:600}
+  .gotcha{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--danger);border-radius:8px;padding:14px 18px;margin:10px 0;color:var(--dim);max-width:720px}.gotcha b{color:var(--ink);font-weight:600}.gotcha .tag{font-family:var(--mono);font-size:11px;color:var(--danger);text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:4px}
+  .takeaway{border-left:3px solid var(--yellow);padding:6px 0 6px 16px;color:var(--ink);max-width:680px;margin:12px 0 0;font-size:15.5px}.takeaway b{color:var(--yellow)}
+  table{width:100%;border-collapse:collapse;font-size:14px;margin:12px 0 18px}th{font-family:var(--mono);font-size:11.5px;color:var(--faint);text-align:left;font-weight:500;padding:10px 12px;border-bottom:1px solid var(--line);text-transform:uppercase;letter-spacing:.04em}td{padding:10px 12px;border-bottom:1px solid var(--line);color:var(--dim);vertical-align:top}td code{font-family:var(--mono);font-size:.86em;color:var(--ink);background:var(--panel2);padding:2px 6px;border-radius:3px}tr td:first-child{color:var(--ink);font-weight:500}
+  .next{display:flex;flex-wrap:wrap;gap:14px;margin-top:18px}.next a{display:block;flex:1 1 280px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px 16px;text-decoration:none;color:var(--dim);transition:border-color .15s}.next a:hover{border-color:var(--yellow)}.next .nx-eyebrow{font-family:var(--mono);font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px}.next .nx-t{color:var(--ink);font-weight:600;font-size:15px}
+  footer{margin-top:60px;padding-top:24px;border-top:1px solid var(--line);font-family:var(--mono);font-size:13px;color:var(--faint)}
+</style>
+</head>
+<body><main>
+
+<header>
+  <div class="crumb"><a href="../../../README.md">clickhouse-playground</a> / <a href="../../README.md">lab</a> / <a href="index.html">exercises</a> / <b>22 · postgres_sync</b></div>
+  <h1>OLTP in. <span class="y">Analytics</span> out.</h1>
+  <p class="lede">The most common real-world integration: app data lives in Postgres, analytics live in ClickHouse. Four escalating patterns — pick the one your latency budget allows. Live query, dictionary cache, refreshable MV, full CDC.</p>
+  <div class="meta">
+    <span>File · <b>lab/sql/22_postgres_sync.sql</b></span>
+    <span>Reading · <b>~14 min</b></span>
+    <span>Level · <b>Integrations</b></span>
+    <span>Prereq · <b>make up-integrations</b></span>
+  </div>
+</header>
+
+<section>
+  <div class="eyebrow"><b>0</b> · The decision ladder</div>
+  <h2>Match latency tolerance to pattern</h2>
+  <table>
+    <thead><tr><th>Pattern</th><th>Lag</th><th>Use when</th></tr></thead>
+    <tbody>
+      <tr><td>Live query</td><td>per query (slow)</td><td>Exploration, tiny tables</td></tr>
+      <tr><td>Dictionary</td><td>~1 minute</td><td>Dimensions you enrich with (RAM-sized)</td></tr>
+      <tr><td>Refreshable MV</td><td>~1 minute</td><td>Full small/medium table sync</td></tr>
+      <tr><td>CDC (Debezium + Kafka)</td><td>seconds</td><td>Big/hot tables, deletes matter</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section>
+  <div class="eyebrow"><b>1</b> · Pattern 1 — Live query</div>
+  <h2>No sync at all</h2>
+  <pre class="sql"><span class="kw">SELECT</span> plan, count()
+<span class="kw">FROM</span> postgresql(<span class="lit">'postgres:5432'</span>, <span class="lit">'app'</span>, <span class="lit">'customers'</span>, <span class="lit">'postgres'</span>, <span class="lit">'lab'</span>)
+<span class="kw">GROUP BY</span> plan;</pre>
+  <p class="prose">Every query hits Postgres. Fine for ad-hoc analysis. <b>Don't put this in a hot dashboard JOIN target.</b></p>
+</section>
+
+<section>
+  <div class="eyebrow"><b>2</b> · Pattern 2 — Postgres dictionary</div>
+  <h2>Live dims, cached in RAM</h2>
+  <pre class="sql"><span class="kw">CREATE DICTIONARY</span> lab.customers_dict
+(
+    customer_id <span class="kw">UInt32</span>,
+    name        <span class="kw">String</span>,
+    plan        <span class="kw">String</span>,
+    country     <span class="kw">String</span>
+)
+<span class="kw">PRIMARY KEY</span> customer_id
+<span class="kw">SOURCE</span>(<span class="kw">POSTGRESQL</span>(<span class="kw">HOST</span> <span class="lit">'postgres'</span> <span class="kw">PORT</span> <span class="lit">5432</span> <span class="kw">DB</span> <span class="lit">'app'</span> <span class="kw">TABLE</span> <span class="lit">'customers'</span>
+                  <span class="kw">USER</span> <span class="lit">'postgres'</span> <span class="kw">PASSWORD</span> <span class="lit">'lab'</span>))
+<span class="kw">LAYOUT</span>(<span class="kw">HASHED</span>())
+<span class="kw">LIFETIME</span>(<span class="kw">MIN</span> <span class="lit">60</span> <span class="kw">MAX</span> <span class="lit">120</span>);
+
+<span class="com">-- O(1) in-RAM lookup, auto-refreshed every ~minute:</span>
+<span class="kw">SELECT</span> dictGet(<span class="lit">'lab.customers_dict'</span>, <span class="lit">'plan'</span>, toUInt64(<span class="lit">42</span>)) <span class="kw">AS</span> plan_of_customer_42;</pre>
+  <p class="prose">Update a row in Postgres, wait for LIFETIME (or <code>SYSTEM RELOAD DICTIONARY</code>), query again:</p>
+  <pre class="shell">docker exec pg psql -U postgres app -c \
+  <span class="lit">"UPDATE customers SET plan='enterprise' WHERE customer_id=42"</span></pre>
+  <p class="takeaway"><b>You just built near-real-time dimension sync with zero pipeline code.</b></p>
+</section>
+
+<section>
+  <div class="eyebrow"><b>3</b> · Pattern 3 — Refreshable MV</div>
+  <h2>Cron-free ELT in two CREATEs</h2>
+  <pre class="sql"><span class="kw">SET</span> allow_experimental_refreshable_materialized_view = <span class="lit">1</span>;  <span class="com">-- needed on 24.8</span>
+
+<span class="kw">CREATE MATERIALIZED VIEW</span> lab.orders_sync
+<span class="kw">REFRESH EVERY</span> <span class="lit">1</span> <span class="kw">MINUTE</span>
+<span class="kw">ENGINE</span> = MergeTree <span class="kw">ORDER BY</span> (customer_id, created_at)
+<span class="kw">AS SELECT</span>
+    order_id, customer_id,
+    toDecimal64(amount, <span class="lit">2</span>) <span class="kw">AS</span> amount,
+    created_at
+<span class="kw">FROM</span> postgresql(<span class="lit">'postgres:5432'</span>, <span class="lit">'app'</span>, <span class="lit">'orders'</span>, <span class="lit">'postgres'</span>, <span class="lit">'lab'</span>);
+
+<span class="com">-- Watch it run:</span>
+<span class="kw">SELECT</span> view, status, last_success_time, next_refresh_time
+<span class="kw">FROM</span> system.view_refreshes;</pre>
+  <p class="prose">Now do analytics Postgres couldn't do cheaply, enriched via the dict:</p>
+  <pre class="sql"><span class="kw">SELECT</span>
+    dictGet(<span class="lit">'lab.customers_dict'</span>, <span class="lit">'plan'</span>, toUInt64(customer_id)) <span class="kw">AS</span> plan,
+    count() <span class="kw">AS</span> orders,
+    sum(amount) <span class="kw">AS</span> revenue
+<span class="kw">FROM</span> lab.orders_sync
+<span class="kw">GROUP BY</span> plan;</pre>
+  <p class="takeaway">
+    <b>Right answer for tables up to a few tens of millions of rows</b> where minute-level lag is fine. Full refresh is cheap on this scale.
+  </p>
+</section>
+
+<section>
+  <div class="eyebrow"><b>4</b> · Pattern 4 — True CDC</div>
+  <h2>When you outgrow refreshable MVs</h2>
+  <pre class="diagram">  Postgres WAL  ──►  Debezium  ──►  Kafka  ──►  Kafka engine + MV (exercise 21!)
+                                                  into ReplacingMergeTree(version)
+
+  Deletes/updates become versioned rows.
+  Reads dedup with the FINAL-dodging tricks from exercise 13.</pre>
+  <p class="prose">
+    <code>MaterializedPostgreSQL</code> engine does this natively but is experimental — know it exists, don't bet prod on it.
+  </p>
+  <p class="takeaway">
+    <b>CDC is just exercises 21 + 13 composed.</b> You already have every piece.
+  </p>
+</section>
+
+<section>
+  <div class="eyebrow"><b>5</b> · Gotchas</div>
+  <h2>What experts know</h2>
+  <div class="gotcha"><span class="tag">Trap</span>
+    <b>The <code>postgresql()</code> function is not free.</b> Every query opens a Postgres connection. For frequent reads, wrap as a dictionary OR a refreshable MV — never a raw table function in a hot path.
+  </div>
+  <div class="gotcha"><span class="tag">Trap</span>
+    <b>Refreshable MVs do a FULL refresh.</b> No incremental sync. At 100M rows this is wasteful; switch to CDC.
+  </div>
+  <div class="gotcha"><span class="tag">Pattern</span>
+    <b>The dictionary pattern is half of "OLAP companion to OLTP" for most teams.</b> Dimensions in CH dictionaries (auto-refreshed), facts in CH MergeTree (CDC'd via Kafka), Postgres stays for transactions only. Single SQL surface, two engines.
+  </div>
+</section>
+
+<section>
+  <div class="eyebrow"><b>6</b> · Next</div>
+  <div class="next">
+    <a href="30_tick_store.html"><div class="nx-eyebrow">Lab · 30</div><div class="nx-t">Tick store — market data is CH's home turf →</div></a>
+    <a href="31_ml_features.html"><div class="nx-eyebrow">Lab · 31</div><div class="nx-t">ML features — CH as a feature factory →</div></a>
+  </div>
+</section>
+
+<footer>lab/sql/22_postgres_sync.sql · part of clickhouse-playground</footer>
+</main></body></html>

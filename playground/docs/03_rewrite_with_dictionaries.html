@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Playground 03 · Rewrite FINAL lookups with dictGet</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#16181d;--panel:#1e2128;--panel2:#23262e;--line:#31353f;--ink:#e8e6df;--dim:#989ca6;--faint:#6b7078;--yellow:#f5c518;--read:#5fa8ff;--danger:#ff5d52;--ok:#5ad08a;--mono:'IBM Plex Mono',ui-monospace,monospace;--disp:'Space Grotesk',sans-serif;--body:'Inter',system-ui,sans-serif}
+  *{box-sizing:border-box;margin:0;padding:0}body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.65}main{max-width:980px;margin:0 auto;padding:0 20px 120px}a{color:var(--yellow)}::selection{background:var(--yellow);color:#16181d}
+  header{padding:64px 0 40px;border-bottom:1px solid var(--line)}.crumb{font-family:var(--mono);font-size:13px;color:var(--faint)}.crumb b{color:var(--yellow);font-weight:500}.crumb a{color:var(--faint);text-decoration:none}.crumb a:hover{color:var(--yellow)}
+  h1{font-family:var(--disp);font-weight:700;font-size:clamp(30px,5vw,46px);line-height:1.08;margin:14px 0;letter-spacing:-.02em}h1 .y{color:var(--yellow)}.lede{max-width:680px;color:var(--dim);font-size:17px}.lede b{color:var(--ink);font-weight:600}
+  .meta{display:flex;flex-wrap:wrap;gap:18px;margin-top:22px;font-family:var(--mono);font-size:12.5px;color:var(--faint)}.meta b{color:var(--ink);font-weight:500}
+  section{padding:48px 0 8px;border-bottom:1px solid var(--line)}section:last-of-type{border-bottom:none}
+  .eyebrow{font-family:var(--mono);font-size:12.5px;color:var(--faint);margin-bottom:10px;letter-spacing:.04em;text-transform:uppercase}.eyebrow b{color:var(--yellow);font-weight:500}
+  h2{font-family:var(--disp);font-weight:700;font-size:clamp(22px,3vw,28px);letter-spacing:-.01em;margin-bottom:14px}h3{font-family:var(--disp);font-weight:500;font-size:18px;margin:22px 0 8px}
+  p.prose{max-width:680px;color:var(--dim);margin-bottom:14px}p.prose b{color:var(--ink);font-weight:600}p.prose code,.inline{font-family:var(--mono);font-size:.88em;background:var(--panel2);padding:2px 6px;border-radius:4px;color:var(--ink)}
+  pre.sql,pre.shell,pre.diagram{font-family:var(--mono);font-size:13px;line-height:1.55;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:16px 18px;overflow-x:auto;margin:12px 0 14px;color:var(--ink);white-space:pre}
+  pre.shell{border-left:3px solid var(--read)}pre.sql{border-left:3px solid var(--yellow)}pre.diagram{border-left:3px solid var(--faint);color:var(--dim)}
+  pre .kw{color:var(--read)}pre .lit{color:var(--yellow)}pre .com{color:var(--faint);font-style:italic}pre .ok{color:var(--ok)}pre .bad{color:var(--danger)}
+  .step{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:20px 22px;margin:18px 0}.step-h{display:flex;flex-wrap:wrap;align-items:baseline;gap:10px;margin-bottom:6px}.step-n{font-family:var(--mono);font-size:11px;color:var(--yellow);background:var(--panel2);padding:3px 8px;border-radius:4px;font-weight:600}.step-t{font-family:var(--disp);font-size:17px;font-weight:600}
+  .expect{border-left:3px solid var(--ok);padding:6px 0 6px 14px;color:var(--dim);font-size:14.5px;margin:10px 0 0;max-width:660px}.expect b{color:var(--ink)}.expect .num{color:var(--yellow);font-family:var(--mono);font-weight:600}
+  .gotcha{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--danger);border-radius:8px;padding:14px 18px;margin:10px 0;color:var(--dim);max-width:720px}.gotcha b{color:var(--ink);font-weight:600}.gotcha .tag{font-family:var(--mono);font-size:11px;color:var(--danger);text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:4px}
+  .takeaway{border-left:3px solid var(--yellow);padding:6px 0 6px 16px;color:var(--ink);max-width:680px;margin:12px 0 0;font-size:15.5px}.takeaway b{color:var(--yellow)}
+  table{width:100%;border-collapse:collapse;font-size:14px;margin:12px 0 18px}th{font-family:var(--mono);font-size:11.5px;color:var(--faint);text-align:left;font-weight:500;padding:10px 12px;border-bottom:1px solid var(--line);text-transform:uppercase;letter-spacing:.04em}td{padding:10px 12px;border-bottom:1px solid var(--line);color:var(--dim);vertical-align:top}td code{font-family:var(--mono);font-size:.86em;color:var(--ink);background:var(--panel2);padding:2px 6px;border-radius:3px}tr td:first-child{color:var(--ink);font-weight:500}
+  .next{display:flex;flex-wrap:wrap;gap:14px;margin-top:18px}.next a{display:block;flex:1 1 280px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px 16px;text-decoration:none;color:var(--dim);transition:border-color .15s}.next a:hover{border-color:var(--yellow)}.next .nx-eyebrow{font-family:var(--mono);font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px}.next .nx-t{color:var(--ink);font-weight:600;font-size:15px}
+  footer{margin-top:60px;padding-top:24px;border-top:1px solid var(--line);font-family:var(--mono);font-size:13px;color:var(--faint)}
+</style>
+</head>
+<body><main>
+
+<header>
+  <div class="crumb"><a href="../../README.md">clickhouse-playground</a> / <a href="../README.md">playground</a> / <b>03 · rewrite_with_dictionaries</b></div>
+  <h1>Two patterns. Three rewrites. One <span class="y">dictGet</span>.</h1>
+  <p class="lede">Take the queries that currently JOIN through the <code>read.*</code> FINAL layer and rewrite them to call <code>dictGet</code> on the dictionaries from exercise 02. The schema stays the same; the cost graph flips upside down.</p>
+  <div class="meta">
+    <span>File · <b>playground/exercises/03_rewrite_with_dictionaries.sql</b></span>
+    <span>Reading · <b>~10 min</b></span>
+    <span>Level · <b>Refactor</b></span>
+    <span>Prereq · <b>exercise 02 (dictionaries created)</b></span>
+  </div>
+</header>
+
+<section>
+  <div class="eyebrow"><b>0</b> · The pattern</div>
+  <h2>Before / after, mechanical</h2>
+  <pre class="diagram">  BEFORE:                                   AFTER:
+  JOIN read.&lt;small_table&gt; t ON ...           dictGet('db.dict_name', 'col', key)
+       │                                          │
+       └─ hits FINAL layer                       └─ hits in-RAM hash table
+          rebuilds hash table per query             O(1) lookup, loaded once</pre>
+</section>
+
+<section>
+  <div class="eyebrow"><b>1</b> · Run it</div>
+  <h2>Three rewrites</h2>
+
+  <div class="step">
+    <div class="step-h"><span class="step-n">Example A</span><span class="step-t">Is a date a trading holiday?</span></div>
+    <h3>BEFORE — JOIN through the FINAL layer</h3>
+    <pre class="sql"><span class="kw">SELECT</span>
+    d.date_key,
+    h.holiday_name,
+    h.is_partial
+<span class="kw">FROM</span> stg.date d
+<span class="kw">LEFT JOIN</span> read.trading_holiday h
+    <span class="kw">ON</span> d.date_key = h.date
+   <span class="kw">AND</span> h.area     = <span class="lit">'NSW1'</span>
+   <span class="kw">AND</span> h.calendar = <span class="lit">'AEMO'</span>
+<span class="kw">WHERE</span> d.date_key &gt;= today() - <span class="lit">30</span>
+<span class="kw">ORDER BY</span> d.date_key;</pre>
+
+    <h3>AFTER — dictGet on the in-memory dictionary</h3>
+    <pre class="sql"><span class="kw">SELECT</span>
+    date_key,
+    dictGet(<span class="lit">'tech.trading_holiday_dict'</span>, <span class="lit">'holiday_name'</span>, (date_key, <span class="lit">'NSW1'</span>, <span class="lit">'AEMO'</span>)) <span class="kw">AS</span> holiday_name,
+    dictGetOrDefault(<span class="lit">'tech.trading_holiday_dict'</span>, <span class="lit">'is_partial'</span>, (date_key, <span class="lit">'NSW1'</span>, <span class="lit">'AEMO'</span>), toUInt8(<span class="lit">0</span>)) <span class="kw">AS</span> is_partial,
+    dictHas(<span class="lit">'tech.trading_holiday_dict'</span>, (date_key, <span class="lit">'NSW1'</span>, <span class="lit">'AEMO'</span>))                 <span class="kw">AS</span> is_holiday
+<span class="kw">FROM</span> stg.date
+<span class="kw">WHERE</span> date_key &gt;= today() - <span class="lit">30</span>
+<span class="kw">ORDER BY</span> date_key;</pre>
+    <p class="prose">
+      <b>Note the tuple key</b>: <code>(date_key, 'NSW1', 'AEMO')</code>. <code>COMPLEX_KEY_HASHED</code> layouts always lookup by tuple.<br>
+      <b>Note <code>dictGetOrDefault</code></b>: returns <code>0</code> if the date isn't a holiday, rather than the silent default of <code>dictGet</code>. Production code should always use the Or-Default form unless missing-key panic is desired.
+    </p>
+  </div>
+
+  <div class="step">
+    <div class="step-h"><span class="step-n">Example B</span><span class="step-t">Enrich dispatch data with generation unit metadata.</span></div>
+    <h3>BEFORE — FINAL join on generation_units</h3>
+    <pre class="sql"><span class="kw">SELECT</span>
+    d.interval_utc,
+    d.duid,
+    d.value_mw,
+    u.fuel_type,
+    u.capacity_mw,
+    u.owner
+<span class="kw">FROM</span> read.hkpug5ii1l25n d
+<span class="kw">LEFT JOIN</span> read.generation_units u <span class="kw">ON</span> d.duid = u.unit_id
+<span class="kw">WHERE</span> d.interval_utc &gt;= now() - <span class="kw">INTERVAL</span> <span class="lit">1</span> <span class="kw">DAY</span>
+<span class="kw">LIMIT</span> <span class="lit">1000</span>;</pre>
+
+    <h3>AFTER — dictGet replaces the join entirely</h3>
+    <pre class="sql"><span class="kw">SELECT</span>
+    interval_utc,
+    duid,
+    value_mw,
+    dictGetOrDefault(<span class="lit">'nz.generation_units_dict'</span>, <span class="lit">'fuel_type'</span>,   duid, <span class="lit">'Unknown'</span>)     <span class="kw">AS</span> fuel_type,
+    dictGetOrDefault(<span class="lit">'nz.generation_units_dict'</span>, <span class="lit">'capacity_mw'</span>, duid, toFloat64(<span class="lit">0</span>))  <span class="kw">AS</span> capacity_mw,
+    dictGetOrDefault(<span class="lit">'nz.generation_units_dict'</span>, <span class="lit">'owner'</span>,       duid, <span class="lit">'Unknown'</span>)     <span class="kw">AS</span> owner
+<span class="kw">FROM</span> read.hkpug5ii1l25n
+<span class="kw">WHERE</span> interval_utc &gt;= now() - <span class="kw">INTERVAL</span> <span class="lit">1</span> <span class="kw">DAY</span>
+<span class="kw">LIMIT</span> <span class="lit">1000</span>;</pre>
+    <p class="prose">
+      <code>HASHED()</code> layout takes the bare key (here <code>duid</code>, a <code>String</code>), not a tuple. Three dictionary calls per row sounds expensive — it isn't. In RAM, each is a hash probe.
+    </p>
+  </div>
+
+  <div class="step">
+    <div class="step-h"><span class="step-n">Example C</span><span class="step-t">Replace a derived view with a dict-backed version.</span></div>
+    <p class="prose">This is the highest-leverage rewrite: a view that downstream consumers use, now FINAL-free.</p>
+    <pre class="sql"><span class="kw">CREATE OR REPLACE VIEW</span> au.dispatch_enriched <span class="kw">AS</span>
+<span class="kw">SELECT</span>
+    interval_utc,
+    region,
+    duid,
+    value_mw,
+    forecast_mw,
+    <span class="com">-- fuel_type comes from the dictionary — no FINAL join</span>
+    dictGetOrDefault(<span class="lit">'nz.generation_units_dict'</span>, <span class="lit">'fuel_type'</span>,   duid, fuel_type)    <span class="kw">AS</span> fuel_type,
+    dictGetOrDefault(<span class="lit">'nz.generation_units_dict'</span>, <span class="lit">'capacity_mw'</span>, duid, toFloat64(<span class="lit">0</span>)) <span class="kw">AS</span> capacity_mw,
+    <span class="com">-- holiday flag comes from the dictionary — no FINAL join</span>
+    dictHas(<span class="lit">'tech.trading_holiday_dict'</span>, (toDate(interval_utc), region, <span class="lit">'AEMO'</span>))    <span class="kw">AS</span> is_holiday
+<span class="kw">FROM</span> read.hkpug5ii1l25n;
+
+<span class="kw">SELECT</span> * <span class="kw">FROM</span> au.dispatch_enriched <span class="kw">LIMIT</span> <span class="lit">10</span>;</pre>
+    <p class="expect">
+      Every consumer of <code>au.dispatch_enriched</code> now skips two FINAL joins. If this view is used by 20 downstream consumers across dashboards, that's 20 query patterns simultaneously sped up by a single DDL change.
+    </p>
+  </div>
+</section>
+
+<section>
+  <div class="eyebrow"><b>2</b> · The dict-function cheat sheet</div>
+  <table>
+    <thead><tr><th>Function</th><th>Returns</th><th>Use when</th></tr></thead>
+    <tbody>
+      <tr><td><code>dictGet(d, col, key)</code></td><td>Value or silent default</td><td>You know the key exists (PK reference). Production: avoid.</td></tr>
+      <tr><td><code>dictGetOrDefault(d, col, key, fallback)</code></td><td>Value or your fallback</td><td>Production. Explicit semantics for missing keys.</td></tr>
+      <tr><td><code>dictHas(d, key)</code></td><td><code>UInt8</code> (0/1)</td><td>Boolean "is this key in the dict" (e.g. holiday flag).</td></tr>
+      <tr><td><code>dictGetOrNull(d, col, key)</code></td><td>Value or NULL</td><td>You want NULL semantics for missing.</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section>
+  <div class="eyebrow"><b>3</b> · Gotchas</div>
+  <h2>What experts know</h2>
+  <div class="gotcha"><span class="tag">Trap</span>
+    <b>Composite-key dictionaries need TUPLE lookups.</b> Forget the tuple parens and you get a confusing type-mismatch error: <code>dictGet('d', 'col', a, b, c)</code> ≠ <code>dictGet('d', 'col', (a, b, c))</code>.
+  </div>
+  <div class="gotcha"><span class="tag">Trap</span>
+    <b>The simple-key dict expects the source's exact key type.</b> If the dict's <code>unit_id</code> is <code>String</code> in source, pass a <code>String</code>, not <code>toUInt64(...)</code>. The opposite of the lab's UInt16 example.
+  </div>
+  <div class="gotcha"><span class="tag">Pattern</span>
+    <b>Replacing views beats rewriting queries.</b> Don't ask 20 dashboard authors to refactor their SQL. Replace the view they all read; their queries get faster automatically.
+  </div>
+</section>
+
+<section>
+  <div class="eyebrow"><b>4</b> · Next</div>
+  <div class="next">
+    <a href="04_benchmark.html"><div class="nx-eyebrow">Playground · 04</div><div class="nx-t">Measure the gap — side-by-side benchmark →</div></a>
+    <a href="01_understand_final.html"><div class="nx-eyebrow">Playground · 01 (revisit)</div><div class="nx-t">Hit list of FINAL-heavy tables →</div></a>
+  </div>
+</section>
+
+<footer>playground/exercises/03_rewrite_with_dictionaries.sql · part of clickhouse-playground</footer>
+</main></body></html>

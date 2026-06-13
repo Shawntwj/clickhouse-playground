@@ -1,0 +1,54 @@
+<clickhouse>
+    <!--
+      Two clusters defined over the same two physical nodes.
+      Lab uses both — exercise 41 uses cluster_1s2r, exercise 42 uses cluster_2s1r.
+    -->
+    <remote_servers>
+        <!-- 1 shard × 2 replicas — for ReplicatedMergeTree (exercise 41) -->
+        <cluster_1s2r>
+            <shard>
+                <internal_replication>true</internal_replication>
+                <replica>
+                    <host>ch-1</host>
+                    <port>9000</port>
+                    <user>admin</user>
+                    <password>admin</password>
+                </replica>
+                <replica>
+                    <host>ch-2</host>
+                    <port>9000</port>
+                    <user>admin</user>
+                    <password>admin</password>
+                </replica>
+            </shard>
+        </cluster_1s2r>
+
+        <!-- 2 shards × 1 replica — for Distributed + sharding (exercise 42) -->
+        <cluster_2s1r>
+            <shard>
+                <replica>
+                    <host>ch-1</host>
+                    <port>9000</port>
+                    <user>admin</user>
+                    <password>admin</password>
+                </replica>
+            </shard>
+            <shard>
+                <replica>
+                    <host>ch-2</host>
+                    <port>9000</port>
+                    <user>admin</user>
+                    <password>admin</password>
+                </replica>
+            </shard>
+        </cluster_2s1r>
+    </remote_servers>
+
+    <!-- Point both nodes at the standalone Keeper container -->
+    <zookeeper>
+        <node>
+            <host>ch-keeper</host>
+            <port>9181</port>
+        </node>
+    </zookeeper>
+</clickhouse>

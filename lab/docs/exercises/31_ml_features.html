@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lab 31 · ML features — ClickHouse as your feature factory</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#16181d;--panel:#1e2128;--panel2:#23262e;--line:#31353f;--ink:#e8e6df;--dim:#989ca6;--faint:#6b7078;--yellow:#f5c518;--read:#5fa8ff;--danger:#ff5d52;--ok:#5ad08a;--mono:'IBM Plex Mono',ui-monospace,monospace;--disp:'Space Grotesk',sans-serif;--body:'Inter',system-ui,sans-serif}
+  *{box-sizing:border-box;margin:0;padding:0}body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.65}main{max-width:980px;margin:0 auto;padding:0 20px 120px}a{color:var(--yellow)}::selection{background:var(--yellow);color:#16181d}
+  header{padding:64px 0 40px;border-bottom:1px solid var(--line)}.crumb{font-family:var(--mono);font-size:13px;color:var(--faint)}.crumb b{color:var(--yellow);font-weight:500}.crumb a{color:var(--faint);text-decoration:none}.crumb a:hover{color:var(--yellow)}
+  h1{font-family:var(--disp);font-weight:700;font-size:clamp(30px,5vw,46px);line-height:1.08;margin:14px 0;letter-spacing:-.02em}h1 .y{color:var(--yellow)}.lede{max-width:680px;color:var(--dim);font-size:17px}.lede b{color:var(--ink);font-weight:600}
+  .meta{display:flex;flex-wrap:wrap;gap:18px;margin-top:22px;font-family:var(--mono);font-size:12.5px;color:var(--faint)}.meta b{color:var(--ink);font-weight:500}
+  section{padding:48px 0 8px;border-bottom:1px solid var(--line)}section:last-of-type{border-bottom:none}
+  .eyebrow{font-family:var(--mono);font-size:12.5px;color:var(--faint);margin-bottom:10px;letter-spacing:.04em;text-transform:uppercase}.eyebrow b{color:var(--yellow);font-weight:500}
+  h2{font-family:var(--disp);font-weight:700;font-size:clamp(22px,3vw,28px);letter-spacing:-.01em;margin-bottom:14px}h3{font-family:var(--disp);font-weight:500;font-size:18px;margin:22px 0 8px}
+  p.prose{max-width:680px;color:var(--dim);margin-bottom:14px}p.prose b{color:var(--ink);font-weight:600}p.prose code,.inline{font-family:var(--mono);font-size:.88em;background:var(--panel2);padding:2px 6px;border-radius:4px;color:var(--ink)}
+  pre.sql,pre.shell,pre.diagram{font-family:var(--mono);font-size:13px;line-height:1.55;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:16px 18px;overflow-x:auto;margin:12px 0 14px;color:var(--ink);white-space:pre}
+  pre.shell{border-left:3px solid var(--read)}pre.sql{border-left:3px solid var(--yellow)}pre.diagram{border-left:3px solid var(--faint);color:var(--dim)}
+  pre .kw{color:var(--read)}pre .lit{color:var(--yellow)}pre .com{color:var(--faint);font-style:italic}pre .ok{color:var(--ok)}pre .bad{color:var(--danger)}
+  .step{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:20px 22px;margin:18px 0}.step-h{display:flex;flex-wrap:wrap;align-items:baseline;gap:10px;margin-bottom:6px}.step-n{font-family:var(--mono);font-size:11px;color:var(--yellow);background:var(--panel2);padding:3px 8px;border-radius:4px;font-weight:600}.step-t{font-family:var(--disp);font-size:17px;font-weight:600}
+  .expect{border-left:3px solid var(--ok);padding:6px 0 6px 14px;color:var(--dim);font-size:14.5px;margin:10px 0 0;max-width:660px}.expect b{color:var(--ink)}.expect .num{color:var(--yellow);font-family:var(--mono);font-weight:600}
+  .gotcha{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--danger);border-radius:8px;padding:14px 18px;margin:10px 0;color:var(--dim);max-width:720px}.gotcha b{color:var(--ink);font-weight:600}.gotcha .tag{font-family:var(--mono);font-size:11px;color:var(--danger);text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:4px}
+  .takeaway{border-left:3px solid var(--yellow);padding:6px 0 6px 16px;color:var(--ink);max-width:680px;margin:12px 0 0;font-size:15.5px}.takeaway b{color:var(--yellow)}
+  table{width:100%;border-collapse:collapse;font-size:14px;margin:12px 0 18px}th{font-family:var(--mono);font-size:11.5px;color:var(--faint);text-align:left;font-weight:500;padding:10px 12px;border-bottom:1px solid var(--line);text-transform:uppercase;letter-spacing:.04em}td{padding:10px 12px;border-bottom:1px solid var(--line);color:var(--dim);vertical-align:top}td code{font-family:var(--mono);font-size:.86em;color:var(--ink);background:var(--panel2);padding:2px 6px;border-radius:3px}tr td:first-child{color:var(--ink);font-weight:500}
+  .next{display:flex;flex-wrap:wrap;gap:14px;margin-top:18px}.next a{display:block;flex:1 1 280px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px 16px;text-decoration:none;color:var(--dim);transition:border-color .15s}.next a:hover{border-color:var(--yellow)}.next .nx-eyebrow{font-family:var(--mono);font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px}.next .nx-t{color:var(--ink);font-weight:600;font-size:15px}
+  footer{margin-top:60px;padding-top:24px;border-top:1px solid var(--line);font-family:var(--mono);font-size:13px;color:var(--faint)}
+</style>
+</head>
+<body><main>
+
+<header>
+  <div class="crumb"><a href="../../../README.md">clickhouse-playground</a> / <a href="../../README.md">lab</a> / <a href="index.html">exercises</a> / <b>31 · ml_features</b></div>
+  <h1>ClickHouse is your <span class="y">feature factory</span>.</h1>
+  <p class="lede">The right division of labor: ClickHouse computes features over billions of rows and generates labeled training sets in seconds. Python/GPU trains the model. Trying to make pandas do the feature pass is how laptops die; trying to make ClickHouse do gradient descent is how projects die.</p>
+  <div class="meta">
+    <span>File · <b>lab/sql/31_ml_features.sql</b></span>
+    <span>Reading · <b>~14 min</b></span>
+    <span>Level · <b>Domain (ML)</b></span>
+    <span>Prereq · <b>exercise 30 (ticks, bars_1m)</b></span>
+  </div>
+</header>
+
+<section>
+  <div class="eyebrow"><b>A</b> · Features via window functions</div>
+  <h2>Straight off the bars</h2>
+  <pre class="sql"><span class="kw">CREATE VIEW</span> lab.features <span class="kw">AS</span>
+<span class="kw">WITH</span> base <span class="kw">AS</span> (
+    <span class="kw">SELECT</span> symbol, bar,
+           argMaxMerge(close) <span class="kw">AS</span> close,
+           sum(volume)        <span class="kw">AS</span> volume
+    <span class="kw">FROM</span> lab.bars_1m
+    <span class="kw">GROUP BY</span> symbol, bar
+)
+<span class="kw">SELECT</span>
+    symbol, bar, close,
+    <span class="com">-- log return over previous bar</span>
+    log(close / lagInFrame(close, <span class="lit">1</span>) <span class="kw">OVER</span> w)                          <span class="kw">AS</span> ret_1,
+    <span class="com">-- momentum: 5- and 20-bar returns</span>
+    log(close / lagInFrame(close, <span class="lit">5</span>)  <span class="kw">OVER</span> w)                         <span class="kw">AS</span> ret_5,
+    log(close / lagInFrame(close, <span class="lit">20</span>) <span class="kw">OVER</span> w)                         <span class="kw">AS</span> ret_20,
+    <span class="com">-- rolling volatility: stddev of close over trailing 20 bars</span>
+    stddevPop(close) <span class="kw">OVER</span> (<span class="kw">PARTITION BY</span> symbol <span class="kw">ORDER BY</span> bar
+                           <span class="kw">ROWS BETWEEN</span> <span class="lit">19</span> <span class="kw">PRECEDING</span> <span class="kw">AND CURRENT ROW</span>) <span class="kw">AS</span> vol_20,
+    <span class="com">-- volume z-score vs trailing 20 bars</span>
+    (volume - avg(volume) <span class="kw">OVER</span> (<span class="kw">PARTITION BY</span> symbol <span class="kw">ORDER BY</span> bar
+                                <span class="kw">ROWS BETWEEN</span> <span class="lit">19</span> <span class="kw">PRECEDING</span> <span class="kw">AND CURRENT ROW</span>))
+      / nullIf(stddevPop(volume) <span class="kw">OVER</span> (<span class="kw">PARTITION BY</span> symbol <span class="kw">ORDER BY</span> bar
+                                <span class="kw">ROWS BETWEEN</span> <span class="lit">19</span> <span class="kw">PRECEDING</span> <span class="kw">AND CURRENT ROW</span>), <span class="lit">0</span>) <span class="kw">AS</span> vol_z,
+    <span class="com">-- THE LABEL: forward 5-bar return</span>
+    <span class="com">-- (leadInFrame looks INTO THE FUTURE — only legal because we're</span>
+    <span class="com">--  building training data, never live features!)</span>
+    log(leadInFrame(close, <span class="lit">5</span>) <span class="kw">OVER</span> w / close)                         <span class="kw">AS</span> y_fwd_5
+<span class="kw">FROM</span> base
+<span class="kw">WINDOW</span> w <span class="kw">AS</span> (<span class="kw">PARTITION BY</span> symbol <span class="kw">ORDER BY</span> bar)
+<span class="kw">ORDER BY</span> symbol, bar;
+
+<span class="kw">SELECT</span> * <span class="kw">FROM</span> lab.features <span class="kw">WHERE</span> symbol = <span class="lit">'SYM7'</span> <span class="kw">LIMIT</span> <span class="lit">5</span> <span class="kw">OFFSET</span> <span class="lit">25</span>;</pre>
+  <p class="takeaway">
+    <b>A full feature pass over every symbol, windowed, labeled — in one query.</b> On real data this is the job that takes pandas an hour and ClickHouse seconds.
+  </p>
+</section>
+
+<section>
+  <div class="eyebrow"><b>B</b> · Train/test split, export as Parquet</div>
+  <h2>Reproducible by hash, not by random state</h2>
+  <pre class="sql"><span class="com">-- Hash-based split = deterministic, no leakage from random state:</span>
+<span class="kw">INSERT INTO FUNCTION</span> file(<span class="lit">'/var/lib/clickhouse/user_files/train.parquet'</span>, Parquet)
+<span class="kw">SELECT</span> * <span class="kw">FROM</span> lab.features
+<span class="kw">WHERE</span> y_fwd_5 <span class="kw">IS NOT NULL</span> <span class="kw">AND</span> ret_20 <span class="kw">IS NOT NULL</span>
+  <span class="kw">AND</span> cityHash64(symbol, bar) % <span class="lit">10</span> &lt; <span class="lit">8</span>;            <span class="com">-- 80%</span>
+
+<span class="kw">INSERT INTO FUNCTION</span> file(<span class="lit">'/var/lib/clickhouse/user_files/test.parquet'</span>, Parquet)
+<span class="kw">SELECT</span> * <span class="kw">FROM</span> lab.features
+<span class="kw">WHERE</span> y_fwd_5 <span class="kw">IS NOT NULL</span> <span class="kw">AND</span> ret_20 <span class="kw">IS NOT NULL</span>
+  <span class="kw">AND</span> cityHash64(symbol, bar) % <span class="lit">10</span> >= <span class="lit">8</span>;           <span class="com">-- 20%</span></pre>
+  <p class="prose">Copy out and train:</p>
+  <pre class="shell">docker cp clickhouse:/var/lib/clickhouse/user_files/train.parquet .
+<span class="com"># Then in Python:</span>
+python -c <span class="lit">"
+import pandas as pd
+df = pd.read_parquet('train.parquet')
+# ...XGBoost, torch, etc.
+"</span></pre>
+  <p class="prose">Or skip the file entirely with <b>chDB</b> (<code>pip install chdb</code>) — the ClickHouse engine embedded in-process: <code>df = chdb.query("SELECT ...", "DataFrame")</code> runs THIS SQL inside your training script. <code>clickhouse-connect</code> is the client for the server itself. <b>Feature logic stays in one place: SQL.</b></p>
+</section>
+
+<section>
+  <div class="eyebrow"><b>C</b> · In-database baseline models</div>
+  <h2>The exception, used carefully</h2>
+  <p class="prose">
+    CH ships SGD linear/logistic regression as aggregate functions. <b>Never your production model.</b> Always your <b>honesty check</b>: if XGBoost can't beat this, your features are the problem.
+  </p>
+  <pre class="sql"><span class="kw">CREATE TABLE</span> lab.baseline <span class="kw">ENGINE</span> = Memory <span class="kw">AS</span>
+<span class="kw">SELECT</span> stochasticLinearRegressionState(<span class="lit">0.01</span>, <span class="lit">0.1</span>, <span class="lit">32</span>, <span class="lit">'Adam'</span>)
+       (y_fwd_5, ret_1, ret_5, ret_20, vol_z) <span class="kw">AS</span> model
+<span class="kw">FROM</span> lab.features
+<span class="kw">WHERE</span> y_fwd_5 <span class="kw">IS NOT NULL</span> <span class="kw">AND</span> ret_20 <span class="kw">IS NOT NULL</span> <span class="kw">AND</span> vol_z <span class="kw">IS NOT NULL</span>
+  <span class="kw">AND</span> cityHash64(symbol, bar) % <span class="lit">10</span> &lt; <span class="lit">8</span>;
+
+<span class="kw">WITH</span> (<span class="kw">SELECT</span> model <span class="kw">FROM</span> lab.baseline) <span class="kw">AS</span> m
+<span class="kw">SELECT</span>
+    corr(pred, y_fwd_5)                  <span class="kw">AS</span> ic,          <span class="com">-- information coefficient</span>
+    avg(sign(pred) = sign(y_fwd_5))      <span class="kw">AS</span> hit_rate
+<span class="kw">FROM</span> (
+    <span class="kw">SELECT</span> evalMLMethod(m, ret_1, ret_5, ret_20, vol_z) <span class="kw">AS</span> pred, y_fwd_5
+    <span class="kw">FROM</span> lab.features
+    <span class="kw">WHERE</span> y_fwd_5 <span class="kw">IS NOT NULL</span> <span class="kw">AND</span> ret_20 <span class="kw">IS NOT NULL</span> <span class="kw">AND</span> vol_z <span class="kw">IS NOT NULL</span>
+      <span class="kw">AND</span> cityHash64(symbol, bar) % <span class="lit">10</span> >= <span class="lit">8</span>
+);</pre>
+  <p class="expect">
+    On this synthetic random walk, expect ~zero IC — <b>correctly!</b> A pipeline that finds signal in noise is a broken pipeline. Now point it at real scraped data.
+  </p>
+</section>
+
+<section>
+  <div class="eyebrow"><b>D</b> · Model stacking, the ClickHouse way</div>
+  <h2>Predictions are just another table</h2>
+  <p class="prose">
+    Stacked models = predictions from model A become features for model B. Operationally:
+  </p>
+  <pre class="diagram">  Write every model's predictions back as a table:
+    (symbol, bar, model_version, pred), ORDER BY (symbol, bar)
+
+  Then ASOF/equi-join them into the feature view above.
+  ClickHouse becomes the LEDGER of all model outputs ──►
+  backtesting and model monitoring (rolling IC per model_version)
+  are plain SQL on the same dashboard stack you already run.</pre>
+</section>
+
+<section>
+  <div class="eyebrow"><b>E</b> · Gotchas</div>
+  <h2>What experts know</h2>
+  <div class="gotcha"><span class="tag">Trap</span>
+    <b><code>leadInFrame</code> looks into the future.</b> It's correct ONLY when building labels for training data. Using it in features is data leakage and your backtest will look amazing right before production crashes.
+  </div>
+  <div class="gotcha"><span class="tag">Trap</span>
+    <b>Hash-based splits beat random splits for time series.</b> A random 80/20 split leaks the future into training. <code>cityHash64(symbol, bar)</code> + modulo splits by entity-time pairs deterministically.
+  </div>
+  <div class="gotcha"><span class="tag">Pattern</span>
+    <b>chDB lets you skip the file dance entirely.</b> Embedded ClickHouse in your Python process. Best for feature stores where Python compute and SQL compute keep handing data back and forth.
+  </div>
+</section>
+
+<section>
+  <div class="eyebrow"><b>F</b> · You finished the course.</div>
+  <p class="prose">
+    Back to the index to revisit anything, or jump to the playground (prod-replica) track:
+  </p>
+  <div class="next">
+    <a href="index.html"><div class="nx-eyebrow">Lab</div><div class="nx-t">Exercise index →</div></a>
+    <a href="../../../playground/docs/01_understand_final.html"><div class="nx-eyebrow">Playground</div><div class="nx-t">The SELECT FINAL hotspot →</div></a>
+  </div>
+</section>
+
+<footer>lab/sql/31_ml_features.sql · part of clickhouse-playground</footer>
+</main></body></html>

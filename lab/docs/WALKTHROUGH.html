@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Lab, Annotated — a data engineer's walkthrough</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#16181d; --panel:#1e2128; --panel2:#23262e; --line:#31353f;
+  --ink:#e8e6df; --dim:#989ca6; --faint:#6b7078;
+  --yellow:#f5c518; --read:#5fa8ff; --ok:#5ad08a; --danger:#ff5d52;
+  --mono:'IBM Plex Mono',ui-monospace,monospace;
+  --disp:'Space Grotesk',sans-serif;
+  --body:'Inter',system-ui,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.65}
+main{max-width:920px;margin:0 auto;padding:0 20px 120px}
+a{color:var(--yellow)}
+::selection{background:var(--yellow);color:#16181d}
+button:focus-visible{outline:2px solid var(--yellow);outline-offset:2px}
+
+header{padding:60px 0 34px;border-bottom:1px solid var(--line)}
+.crumb{font-family:var(--mono);font-size:13px;color:var(--faint)}
+.crumb b{color:var(--yellow);font-weight:500}
+h1{font-family:var(--disp);font-weight:700;font-size:clamp(32px,5.5vw,52px);line-height:1.08;margin:16px 0 12px;letter-spacing:-.02em}
+h1 .y{color:var(--yellow)}
+.lede{max-width:640px;color:var(--dim);font-size:17px}
+.lede b{color:var(--ink)}
+
+/* progress */
+.progress{display:flex;align-items:center;gap:14px;margin-top:24px}
+.pbar{flex:1;max-width:340px;height:8px;background:var(--panel2);border-radius:4px;overflow:hidden}
+.pbar i{display:block;height:100%;width:0%;background:var(--yellow);transition:width .3s}
+.pnum{font-family:var(--mono);font-size:13px;color:var(--faint)}
+.pnote{font-size:12px;color:var(--faint)}
+
+/* phase nav */
+.phasenav{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--line);
+  display:flex;gap:8px;overflow-x:auto;padding:12px 0;margin-bottom:8px}
+.phasenav button{font-family:var(--mono);font-size:12.5px;white-space:nowrap;background:var(--panel);
+  color:var(--dim);border:1px solid var(--line);border-radius:20px;padding:7px 14px;cursor:pointer}
+.phasenav button.active{background:var(--yellow);border-color:var(--yellow);color:#16181d;font-weight:600}
+
+/* phase blocks */
+.phase{padding-top:44px}
+.phase-eyebrow{font-family:var(--mono);font-size:13px;color:var(--faint)}
+.phase h2{font-family:var(--disp);font-size:clamp(22px,3vw,28px);font-weight:700;margin:6px 0 8px}
+.phase-thesis{max-width:660px;color:var(--dim);margin-bottom:22px}
+.phase-thesis b{color:var(--ink)}
+
+/* the spine of exercise nodes */
+.track{position:relative;padding-left:26px}
+.track::before{content:'';position:absolute;left:8px;top:8px;bottom:8px;width:2px;background:var(--line)}
+.ex{position:relative;margin-bottom:14px}
+.ex::before{content:'';position:absolute;left:-24px;top:18px;width:10px;height:10px;border-radius:50%;
+  background:var(--bg);border:2px solid var(--faint)}
+.ex.done::before{background:var(--yellow);border-color:var(--yellow)}
+.ex-card{background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.ex-head{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:none;border:none;
+  color:var(--ink);padding:15px 18px;cursor:pointer;font-family:var(--body)}
+.ex-head:hover{background:var(--panel2)}
+.ex-file{font-family:var(--mono);font-size:12px;color:var(--yellow);min-width:118px}
+.ex-title{font-weight:600;font-size:15.5px;flex:1}
+.ex-caret{font-family:var(--mono);color:var(--faint);transition:transform .2s}
+.ex.open .ex-caret{transform:rotate(90deg)}
+.ex-body{display:none;padding:4px 18px 18px;border-top:1px solid var(--line)}
+.ex.open .ex-body{display:block}
+.ex-body dl{display:grid;grid-template-columns:128px 1fr;gap:10px 16px;margin-top:14px;font-size:14.5px}
+.ex-body dt{font-family:var(--mono);font-size:11.5px;letter-spacing:.04em;color:var(--faint);padding-top:2px;text-transform:uppercase}
+.ex-body dd{color:var(--dim)}
+.ex-body dd b{color:var(--ink)} 
+.ex-body dd code{font-family:var(--mono);font-size:.86em;background:var(--panel2);padding:1px 6px;border-radius:4px;color:var(--ink)}
+.ex-body dd.principle{color:var(--ink);border-left:3px solid var(--yellow);padding-left:12px}
+.donebtn{margin-top:16px;font-family:var(--mono);font-size:12.5px;background:var(--panel2);color:var(--dim);
+  border:1px solid var(--line);border-radius:6px;padding:7px 14px;cursor:pointer}
+.ex.done .donebtn{background:var(--yellow);color:#16181d;border-color:var(--yellow);font-weight:600}
+
+/* meta section */
+.meta{margin-top:70px;padding-top:40px;border-top:1px solid var(--line)}
+.skills{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin-top:20px}
+.skill{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px}
+.skill h3{font-family:var(--disp);font-size:16.5px;margin-bottom:8px}
+.skill h3 span{color:var(--yellow)}
+.skill p{font-size:14px;color:var(--dim)}
+.skill p b{color:var(--ink)}
+.skill .from{font-family:var(--mono);font-size:11px;color:var(--faint);margin-top:10px}
+
+.rubric{margin-top:34px;overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:14px;min-width:560px}
+th{font-family:var(--mono);font-size:12px;color:var(--faint);text-align:left;font-weight:500;padding:10px 12px;border-bottom:1px solid var(--line)}
+td{padding:10px 12px;border-bottom:1px solid var(--line);color:var(--dim);vertical-align:top}
+tr td:first-child{color:var(--ink);font-weight:600;white-space:nowrap}
+td em{color:var(--yellow);font-style:normal;font-family:var(--mono);font-size:.85em}
+
+footer{margin-top:80px;padding-top:24px;border-top:1px solid var(--line);font-family:var(--mono);font-size:13px;color:var(--faint)}
+@media(max-width:620px){ .ex-body dl{grid-template-columns:1fr} .ex-body dt{padding-top:8px} .ex-file{min-width:0} }
+</style>
+</head>
+<body>
+<main>
+
+<header>
+  <div class="crumb">lab/<b>WALKTHROUGH.html</b> — companion to PRIMER.html · README.md · EXPERT.md</div>
+  <h1>Sixteen exercises.<br>One <span class="y">data engineer</span>.</h1>
+  <p class="lede">Each exercise teaches a ClickHouse mechanic — but underneath it is a <b>database-design principle that transfers to every system you'll ever build</b>. This walkthrough names both, in order, with what to run and how to know you got it.</p>
+  <div class="progress">
+    <div class="pbar"><i id="pfill"></i></div>
+    <span class="pnum"><span id="pdone">0</span>/16 internalized</span>
+    <span class="pnote">(progress lives in this tab only)</span>
+  </div>
+</header>
+
+<nav class="phasenav" id="phasenav"></nav>
+<div id="phases"></div>
+
+<section class="meta">
+  <div class="phase-eyebrow">WHAT THIS IS REALLY TRAINING</div>
+  <h2 style="font-family:var(--disp);font-size:clamp(22px,3vw,28px);margin:6px 0 8px">The six meta-skills of a data engineer</h2>
+  <p class="phase-thesis">ClickHouse is the gym equipment; these are the muscles. Every exercise above trains at least one:</p>
+  <div class="skills">
+    <div class="skill"><h3><span>1.</span> Design backwards from queries</h3>
+      <p>Amateurs model the data they have; engineers model the <b>questions that will be asked</b>. Sort keys, rollups, and sync patterns all fall out of a written list of the top query shapes — produced <b>before</b> any CREATE TABLE.</p>
+      <div class="from">trained by: 01 · 05 · 30</div></div>
+    <div class="skill"><h3><span>2.</span> Measure, never guess</h3>
+      <p>Every performance claim is testable in under a minute. The discipline is <b>predicting the number before running</b> — a wrong prediction is a located gap in your model, and closing those gaps is the entire mechanism of mastery.</p>
+      <div class="from">trained by: 10 · 12 · 13 · every torture script</div></div>
+    <div class="skill"><h3><span>3.</span> Speak in trade-offs</h3>
+      <p>There are no free optimizations, only purchases: storage for read speed, durability for throughput, accuracy for latency, freshness for cost. Seniority is being able to <b>name the price of everything you ship</b> — to machines and to stakeholders.</p>
+      <div class="from">trained by: 03 · 06 · 13 · 22</div></div>
+    <div class="skill"><h3><span>4.</span> Treat data as having a lifecycle</h3>
+      <p>Hot, warm, cold, gone — retention is part of the schema, not an afterthought. Systems whose disks fill <b>on schedule instead of by surprise</b> are the ones that stay cheap and stay up.</p>
+      <div class="from">trained by: 07 · 11 · 30</div></div>
+    <div class="skill"><h3><span>5.</span> Build for failure on purpose</h3>
+      <p>You reproduced "Too many parts" voluntarily, starved merges, OOM'd a query against a ceiling. Engineers who <b>rehearse failure in the lab</b> recognize it instantly in production — and design the budgets (quotas, caps, dead-letter paths) that make it boring.</p>
+      <div class="from">trained by: 11 · 14 · 21</div></div>
+    <div class="skill"><h3><span>6.</span> Integrate through standards, not glue</h3>
+      <p>Parquet, Kafka, SQL interfaces, CDC — the less bespoke code between systems, the less there is to break at 3am. The best pipeline is a <b>FROM clause</b>; the second best is three CREATE statements.</p>
+      <div class="from">trained by: 20 · 21 · 22 · 31</div></div>
+  </div>
+
+  <div class="rubric">
+    <h2 style="font-family:var(--disp);font-size:22px;margin:44px 0 12px">Where you are — honest rubric</h2>
+    <table>
+      <tr><th>skill</th><th>apprentice</th><th>journeyman</th><th>master</th></tr>
+      <tr><td>Schema design</td><td>copies examples</td><td>picks ORDER BY from query list</td><td><em>predicts</em> granules read before EXPLAIN confirms</td></tr>
+      <tr><td>Ingestion</td><td>inserts work</td><td>batches / async by default</td><td>knows the hardware ceiling and <em>attributes</em> every gap below it</td></tr>
+      <tr><td>Debugging</td><td>googles the error</td><td>reads query_log</td><td>diffs <em>ProfileEvents</em> between variants as reflex</td></tr>
+      <tr><td>Cost</td><td>adds hardware</td><td>adds rollups + TTL</td><td>quotes <em>rows scanned/day</em> for any dashboard from memory</td></tr>
+      <tr><td>Integration</td><td>writes sync scripts</td><td>uses table functions / Kafka engine</td><td>picks the sync pattern from the <em>lag-tolerance ladder</em> in one breath</td></tr>
+      <tr><td>Judgment</td><td>uses CH for everything</td><td>knows what CH is bad at</td><td>has <em>refused</em> to use it where Postgres/Redis belonged</td></tr>
+    </table>
+  </div>
+</section>
+
+<footer>
+  loop: pick exercise → predict the numbers → run → diff telemetry → mark internalized.
+  the day predictions land within 20%, retire this page.
+</footer>
+
+</main>
+<script>
+const PHASES = [
+{ id:'p1', eyebrow:'PHASE 1 · sql/01–07 · README.md', title:'Foundations — the layout IS the database',
+  thesis:'Phase one is one idea repeated seven ways: <b>performance is decided when you design the table, not when you write the query.</b> Storage layout, types, insert shape, and lifecycle are the design surface.',
+  ex:[
+  {f:'sql/01', t:'ORDER BY — the 100x decision', d:{
+    run:'<code>make seed</code>, then run both p95 queries and both <code>EXPLAIN indexes=1</code> statements.',
+    happening:'Two identical datasets. In one, rows matching <code>site_id=42</code> sit contiguously, so the sparse index skips ~98% of granules. In the other they\'re scattered, so every granule must be read. Nothing about the query changed — only the physical sort.',
+    principle:'<b>Physical layout must serve the dominant query.</b> In every database — Postgres index design, Kafka partition keys, S3 prefixes — the same law: co-locate what is read together.',
+    de:'Requirements gathering. The senior move is interviewing the <i>queries</i> before designing the table: write the top 3 query shapes down first, always.',
+    proof:'EXPLAIN shows single-digit granules vs all; Rows-read panel drops ~100x.'}},
+  {f:'sql/02', t:'Types & codecs — schema as compression strategy', d:{
+    run:'The <code>system.columns</code> comparison, then beat the ratio with <code>events_tuned</code>.',
+    happening:'Each column is a file; the type and codec decide its bytes. LowCardinality swaps strings for dictionary indexes; Delta stores timestamp differences; UInt16 vs UInt64 is 4x before compression even starts.',
+    principle:'<b>Every byte in the schema is paid for on every query forever.</b> Schema decisions compound like interest — which is why they deserve more review than most code.',
+    de:'Knowing your data\'s distributions (cardinality, ranges, monotonicity) before modeling it. Profiling data is a design step, not an analysis step.',
+    proof:'Compression panel: country goes from ~bytes-per-row to ~bits-per-row.'}},
+  {f:'sql/03', t:'Async inserts — the shape of writes is a contract', d:{
+    run:'<code>make storm-sync</code> until backpressure, truncate, <code>make storm-async</code>.',
+    happening:'Each INSERT births an immutable part; merges fold them. Tiny inserts outrun merging → "Too many parts". async_insert moves batching server-side: buffer, flush, one part per second.',
+    principle:'<b>Ingestion is an interface with a contract:</b> batch size, frequency, durability. Decide it explicitly or the system decides for you — at 3am.',
+    de:'Backpressure thinking. Every producer/consumer boundary in any stack needs an answer to "what happens when in > out?"',
+    proof:'Active-parts panel: cliff vs flatline, same data volume.'}},
+  {f:'sql/04', t:'Dictionaries — joins by data temperature', d:{
+    run:'JOIN vs dictGet benchmark, then the query_log comparison.',
+    happening:'A JOIN rebuilds its hash table per query; a dictionary builds it once, holds it in RAM, re-polls on LIFETIME. Enrichment becomes an O(1) function call.',
+    principle:'<b>Classify data by shape and change-rate, then pick the access pattern:</b> facts stream, dimensions cache. The fact/dimension split is 60 years old because it keeps being true.',
+    de:'Caching strategy: freshness requirements drive architecture. "How stale can this be?" is a requirements question with a number for an answer.',
+    proof:'Several-fold latency drop, large memory drop in query_log.'}},
+  {f:'sql/05', t:'Materialized views — move work upstream', d:{
+    run:'Create the MV, backfill, run raw vs rollup; then the live loop with storm-async.',
+    happening:'An MV is an INSERT trigger: each block is aggregated on the way in. The expensive scan happens once at write time instead of on every dashboard refresh.',
+    principle:'<b>Precompute what you read repeatedly.</b> Write amplification is cheap; read amplification is a tax on every user, forever. This trade IS data engineering.',
+    de:'Pipeline design instinct: push computation as far upstream as freshness allows. (The same logic as CDN edges and compiler optimizations.)',
+    proof:'Millions of rows read → thousands; live panel updates ~1s behind inserts.'}},
+  {f:'sql/06', t:'Skip indexes & projections — indexes are bets', d:{
+    run:'Add the indexes, MATERIALIZE, compare EXPLAIN before/after; add the projection.',
+    happening:'Skip indexes add small per-granule summaries (min/max, sets, bloom filters) so non-key filters can also prune. Projections store the data again in a second order.',
+    principle:'<b>Every index is a bet with a carrying cost</b> (storage, insert speed). A bet you haven\'t measured is a liability wearing an optimization\'s clothes.',
+    de:'Benchmarking rigor: before/after on realistic data, or it didn\'t happen.',
+    proof:'EXPLAIN granule counts drop only for selective predicates — and not for others. Both results are the lesson.'}},
+  {f:'sql/07', t:'TTL — retention is schema', d:{
+    run:'Apply the TTLs, OPTIMIZE, verify oldest data in system.parts.',
+    happening:'TTL clauses run during merges: delete, recompress, or relocate old parts automatically. Raw becomes a 7-day buffer; rollups carry history.',
+    principle:'<b>Data has a lifecycle; encode it where the data lives.</b> Retention bolted on later is a migration; retention in the schema is a sentence.',
+    de:'Cost modeling: GB/day × retention × tier = a budget you can quote before building. Engineers who do this math get trusted with bigger systems.',
+    proof:'Disk usage flatlines; the capacity math in the file matches system.parts.'}}
+]},
+{ id:'p2', eyebrow:'PHASE 2 · sql/10–14 · EXPERT.md', title:'Engine mastery — open the hood, then redline it',
+  thesis:'Phase two converts you from user to operator: <b>you learn what the engine is doing, break it deliberately, and install the guardrails that make breakage boring.</b>',
+  ex:[
+  {f:'sql/10', t:'Anatomy — abstractions leak; read the storage', d:{
+    run:'ls inside a part dir; granule math; cold/warm mark cache; the sampling profiler; EXPLAIN PIPELINE.',
+    happening:'You see parts as directories, columns as files, the sparse index as a few hundred KB, and your own query\'s C++ stacks. The database stops being a black box.',
+    principle:'<b>Every abstraction leaks under load.</b> Engineers who understand one layer below their interface debug what others escalate.',
+    de:'Telemetry-first debugging: the ProfileEvents-diff habit generalizes to every system that emits metrics (i.e., all of them).',
+    proof:'You can explain, from disk layout alone, why SELECT * is slow and why DELETE is.'}},
+  {f:'sql/11', t:'Merge machine — compaction debt is universal', d:{
+    run:'STOP MERGES + storm → backpressure → throw → START MERGES → watch the avalanche; partition surgery; a mutation.',
+    happening:'Merges are deferred work. Pause them and the debt accrues visibly; resume and you watch repayment. Partition ops are O(1) metadata; mutations are O(table) rewrites.',
+    principle:'<b>Every immutable/append system carries compaction debt</b> — LSM trees, Kafka topics, Iceberg tables, git repos. Manage the debt schedule deliberately.',
+    de:'Failure rehearsal. You\'ve now SEEN the failure mode end-to-end in a lab, which is the only place seeing it is free.',
+    proof:'You can induce and cure "Too many parts" from memory, three different ways.'}},
+  {f:'sql/12', t:'Ingestion warfare — know your ceiling', d:{
+    run:'<code>make torture-ingest</code>; then the Null-engine trick.',
+    happening:'The format ladder quantifies parsing/transport overhead against the server-side ceiling. Null+MV shows storage and ingestion are separable concerns.',
+    principle:'<b>Measure the theoretical maximum first;</b> then every gap below it has an owner. Performance work without a ceiling is wandering.',
+    de:'Performance attribution — the difference between "it\'s slow" and "we lose 60% to JSON parsing, here\'s the fix and its cost."',
+    proof:'You can quote your box\'s rows/sec ceiling and what each format costs against it.'}},
+  {f:'sql/13', t:'Read warfare — dials, not switches', d:{
+    run:'Query cache twice; in-order aggregation diff; SAMPLE; the three FINAL dodges; <code>make torture-reads</code>.',
+    happening:'Caches trade freshness for cost; sampling trades accuracy for speed; in-order tricks trade generality for memory; FINAL trades latency for correctness-now.',
+    principle:'<b>Accuracy, freshness, latency, cost — four dials, one budget.</b> Mastery is setting them per use case instead of maxing all four and paying for it.',
+    de:'Trade-off articulation: "dashboard can be 30s stale and sampled" is a sentence that saves more money than most optimizations.',
+    proof:'The concurrency knee, found; and the counterintuitive throughput win from capping threads, witnessed.'}},
+  {f:'sql/14', t:'Isolation — budgets beat elasticity', d:{
+    run:'Create the analyst role, run the monster query as them, watch it die at the ceiling while ingestion ignores it.',
+    happening:'Settings profiles, quotas, and priorities partition one box into workloads with explicit budgets. Failure becomes local and legible.',
+    principle:'<b>A known worst case is worth more than an elastic unknown.</b> Caps are how a fixed box outcompetes an autoscaling bill.',
+    de:'SLO thinking and capacity governance — the skill that turns "DBA" into "platform engineer".',
+    proof:'Memory panel: a spike that hits a flat ceiling and stops, ingestion latency unmoved.'}}
+]},
+{ id:'p3', eyebrow:'PHASE 3 · sql/20–22 · integrations overlay', title:'Integration — every system is a table',
+  thesis:'Phase three dissolves "integration projects" into SQL: <b>pull via table functions, stream via Kafka+MV, sync by lag tolerance.</b> The less glue code, the less breaks.',
+  ex:[
+  {f:'sql/20', t:'Pull anything — Parquet is the lingua franca', d:{
+    run:'Query the remote Parquet straight off the internet; the EMPTY AS SELECT import recipe; export; clickhouse-local.',
+    happening:'Table functions wrap URLs, buckets, files, and other databases in the table interface; schema is inferred; aggregation is pushed down to the scan.',
+    principle:'<b>Integrate through standard formats and interfaces, not bespoke services.</b> Each piece of glue code is a future incident.',
+    de:'ELT instinct: land data raw via standards, transform in SQL where it\'s observable and re-runnable — instead of in a script nobody can find.',
+    proof:'You imported a public dataset with two statements and zero pipeline code.'}},
+  {f:'sql/21', t:'Kafka pipeline — the log decouples', d:{
+    run:'<code>make up-integrations</code>, create topic, the three CREATEs, <code>make kafka-storm</code>; then check system.kafka_consumers.',
+    happening:'Kafka engine = a consumer wearing a table costume; the MV is the pump that transforms and lands data. Offsets in the broker make pause/replay safe.',
+    principle:'<b>A durable log between producers and storage decouples their failures and their speeds.</b> The MV puts transformation at the ingestion boundary — validated once, on the way in.',
+    de:'Streaming semantics literacy: consumer groups, lag, replay, dead-letter routing. Vocabulary every senior data role assumes.',
+    proof:'Messages flow topic → firehose with no service deployed; you can DETACH, produce, ATTACH, and lose nothing.'}},
+  {f:'sql/22', t:'Postgres sync — pick the pattern by lag tolerance', d:{
+    run:'All four patterns: live query → dictionary → refreshable MV → (read) the CDC composition.',
+    happening:'The same OLTP table reached four ways with rising freshness and complexity. The refreshable MV is cron-free ELT; CDC is exercises 21+13 composed.',
+    principle:'<b>Sync pattern selection is a ladder, not a debate:</b> lag tolerance and table size pick the rung. Architecture by checklist beats architecture by fashion.',
+    de:'Respecting the OLTP/OLAP boundary — and CDC literacy for when the boundary must stream.',
+    proof:'You updated a Postgres row and watched ClickHouse notice, with zero custom code.'}}
+]},
+{ id:'p4', eyebrow:'PHASE 4 · sql/30–31 · your actual domain', title:'Domain — market data & the ML feature factory',
+  thesis:'Phase four is everything above, aimed: <b>ticks in, bar pyramid via MVs, features as SQL, model outputs written back as data.</b> The lab becomes your trading-research stack.',
+  ex:[
+  {f:'sql/30', t:'Tick store — granularity is a pyramid, ASOF is a primitive', d:{
+    run:'Create ticks+quotes, check the codec ratios, read 1m bars, run the ASOF spread query.',
+    happening:'Tick-native storage with time-series codecs; MVs build every coarser bar at ingest (your 5-min data becomes one tier); ASOF JOIN aligns feeds by nearest-past timestamp at scan speed.',
+    principle:'<b>Model the domain\'s native granularity and derive the rest.</b> Aggregates are cheap to compute and impossible to un-aggregate — store fine, serve coarse.',
+    de:'Domain modeling for time series: late data, corrections (ReplacingMergeTree), multi-feed alignment — the problems that distinguish market-data engineers.',
+    proof:'10–20x codec compression confirmed; one ASOF query answers what would be a correlated-subquery nightmare elsewhere.'}},
+  {f:'sql/31', t:'ML features — the database is the feature factory', d:{
+    run:'The features view, hash-split Parquet export, the in-DB baseline, the stacking pattern.',
+    happening:'Window functions compute returns/vol/labels over all symbols in one pass; cityHash splits are deterministic; predictions written back become features for the next model and a monitoring surface.',
+    principle:'<b>Feature computation belongs where the data lives; model outputs are data too.</b> Reproducibility (deterministic splits, versioned predictions) is a schema decision.',
+    de:'ML data engineering: leakage discipline (leadInFrame is for labels ONLY), train/serve consistency, and treating "the model said X at time T" as an auditable fact table.',
+    proof:'A labeled training set in seconds; baseline IC ≈ 0 on synthetic noise — your pipeline is honest. Now feed it real scrapes.'}}
+]}
+];
+
+const phasesEl = document.getElementById('phases');
+const nav = document.getElementById('phasenav');
+let doneCount = 0, total = 0;
+
+PHASES.forEach((p,pi)=>{
+  const nb = document.createElement('button');
+  nb.textContent = p.title.split('—')[0].trim();
+  nb.onclick = ()=>{ document.getElementById(p.id).scrollIntoView({behavior:'smooth'});
+    [...nav.children].forEach(c=>c.classList.remove('active')); nb.classList.add('active'); };
+  if(pi===0) nb.classList.add('active');
+  nav.appendChild(nb);
+
+  const sec = document.createElement('section');
+  sec.className='phase'; sec.id=p.id;
+  sec.innerHTML = `<div class="phase-eyebrow">${p.eyebrow}</div><h2>${p.title}</h2><p class="phase-thesis">${p.thesis}</p>`;
+  const track = document.createElement('div'); track.className='track';
+  p.ex.forEach(e=>{
+    total++;
+    const node = document.createElement('div'); node.className='ex';
+    node.innerHTML = `
+      <div class="ex-card">
+        <button class="ex-head" aria-expanded="false">
+          <span class="ex-file">${e.f}</span>
+          <span class="ex-title">${e.t}</span>
+          <span class="ex-caret">›</span>
+        </button>
+        <div class="ex-body">
+          <dl>
+            <dt>run</dt><dd>${e.d.run}</dd>
+            <dt>what's happening</dt><dd>${e.d.happening}</dd>
+            <dt>design principle</dt><dd class="principle">${e.d.principle}</dd>
+            <dt>engineer skill</dt><dd>${e.d.de}</dd>
+            <dt>you got it when</dt><dd>${e.d.proof}</dd>
+          </dl>
+          <button class="donebtn">mark internalized</button>
+        </div>
+      </div>`;
+    const head = node.querySelector('.ex-head');
+    head.onclick = ()=>{ const open = node.classList.toggle('open'); head.setAttribute('aria-expanded', open); };
+    node.querySelector('.donebtn').onclick = (ev)=>{
+      const was = node.classList.toggle('done');
+      ev.target.textContent = was ? 'internalized ✓' : 'mark internalized';
+      doneCount += was ? 1 : -1;
+      document.getElementById('pdone').textContent = doneCount;
+      document.getElementById('pfill').style.width = (doneCount/total*100)+'%';
+    };
+    track.appendChild(node);
+  });
+  sec.appendChild(track);
+  phasesEl.appendChild(sec);
+});
+</script>
+</body>
+</html>

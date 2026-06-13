@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ClickHouse: The Engine Primer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#16181d; --panel:#1e2128; --panel2:#23262e; --line:#31353f;
+    --ink:#e8e6df; --dim:#9a9franchise; --dim:#989ca6; --faint:#6b7078;
+    --yellow:#f5c518; --read:#5fa8ff; --danger:#ff5d52; --ok:#5ad08a;
+    --mono:'IBM Plex Mono',ui-monospace,monospace;
+    --disp:'Space Grotesk',sans-serif;
+    --body:'Inter',system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto} *{animation:none!important;transition:none!important}}
+  body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.65}
+  main{max-width:980px;margin:0 auto;padding:0 20px 120px}
+  a{color:var(--yellow)}
+  ::selection{background:var(--yellow);color:#16181d}
+  button:focus-visible,input:focus-visible{outline:2px solid var(--yellow);outline-offset:2px}
+
+  /* ---------- header ---------- */
+  header{padding:64px 0 40px;border-bottom:1px solid var(--line)}
+  .crumb{font-family:var(--mono);font-size:13px;color:var(--faint);letter-spacing:.02em}
+  .crumb b{color:var(--yellow);font-weight:500}
+  h1{font-family:var(--disp);font-weight:700;font-size:clamp(34px,6vw,58px);line-height:1.05;margin:18px 0 14px;letter-spacing:-.02em}
+  h1 .y{color:var(--yellow)}
+  .lede{max-width:640px;color:var(--dim);font-size:17px}
+  .lede b{color:var(--ink);font-weight:600}
+
+  /* ---------- sections ---------- */
+  section{padding:64px 0 8px}
+  .eyebrow{font-family:var(--mono);font-size:13px;color:var(--faint);margin-bottom:10px}
+  .eyebrow .file{color:var(--yellow)}
+  h2{font-family:var(--disp);font-weight:700;font-size:clamp(24px,3.4vw,32px);letter-spacing:-.01em;margin-bottom:12px}
+  .prose{max-width:660px;color:var(--dim);margin-bottom:24px}
+  .prose b{color:var(--ink);font-weight:600}
+  .prose code{font-family:var(--mono);font-size:.88em;background:var(--panel2);padding:2px 6px;border-radius:4px;color:var(--ink)}
+
+  .sim{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:22px;margin-bottom:18px}
+  .sim-head{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin-bottom:18px}
+  .sim-title{font-family:var(--mono);font-size:13px;color:var(--faint)}
+  .controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+  .btn{font-family:var(--mono);font-size:13px;font-weight:500;background:var(--panel2);color:var(--ink);
+       border:1px solid var(--line);border-radius:6px;padding:8px 14px;cursor:pointer}
+  .btn:hover{border-color:var(--yellow)}
+  .btn.active{background:var(--yellow);color:#16181d;border-color:var(--yellow);font-weight:600}
+  .btn.warn:hover{border-color:var(--danger)}
+  .btn:disabled{opacity:.4;cursor:not-allowed}
+  .readout{display:flex;flex-wrap:wrap;gap:22px;margin-top:18px;padding-top:16px;border-top:1px solid var(--line)}
+  .stat .n{font-family:var(--mono);font-size:24px;font-weight:600;color:var(--yellow)}
+  .stat .n.blue{color:var(--read)} .stat .n.red{color:var(--danger)} .stat .n.ok{color:var(--ok)}
+  .stat .l{font-size:12px;color:var(--faint);margin-top:2px}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--faint);margin-top:12px}
+  .sw{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+  .takeaway{border-left:3px solid var(--yellow);padding:4px 0 4px 16px;color:var(--dim);max-width:640px;margin:8px 0 0}
+  .takeaway b{color:var(--ink)}
+
+  input[type=range]{accent-color:var(--yellow);width:160px;vertical-align:middle}
+  .ctl-label{font-family:var(--mono);font-size:12px;color:var(--faint)}
+  .ctl-label output{color:var(--ink)}
+
+  /* sim 1: columns */
+  .tbl{display:grid;gap:3px}
+  .cell{height:22px;border-radius:3px;background:var(--panel2);transition:background .25s}
+  .cell.read{background:var(--read)}
+  .col-label{font-family:var(--mono);font-size:11px;color:var(--faint);text-align:center;padding-bottom:4px}
+  .q{font-family:var(--mono);font-size:13px;background:var(--panel2);border:1px solid var(--line);
+     border-radius:6px;padding:10px 14px;margin-bottom:16px;color:var(--ink);overflow-x:auto;white-space:nowrap}
+  .q .kw{color:var(--read)} .q .lit{color:var(--yellow)}
+
+  /* sim 2: granules */
+  .granules{display:grid;grid-template-columns:repeat(16,1fr);gap:4px}
+  .gr{aspect-ratio:1.4;border-radius:3px;background:var(--panel2);transition:background .2s}
+  .gr.scan{background:var(--read)}
+  .gr.hit{background:var(--yellow)}
+
+  /* sim 3: parts */
+  .yard{min-height:150px;display:flex;flex-wrap:wrap;align-items:flex-end;gap:5px;padding:14px;
+        background:var(--panel2);border-radius:8px;border:1px solid var(--line)}
+  .part{width:14px;border-radius:2px 2px 0 0;background:var(--yellow);position:relative;transition:height .3s}
+  .part.lvl1{background:#d9a91a}.part.lvl2{background:#bd9020}.part.lvl3{background:#9e7a26}.part.lvl4{background:#7d652d}
+  .part.merging{outline:2px solid var(--ok)}
+  .buffer{height:10px;background:var(--panel2);border:1px solid var(--line);border-radius:5px;overflow:hidden;width:160px}
+  .buffer i{display:block;height:100%;background:var(--read);width:0%;transition:width .15s}
+  .alarm{font-family:var(--mono);font-size:13px;color:var(--danger);min-height:20px;margin-top:10px}
+
+  /* sim 4: bars */
+  .bars{display:grid;gap:14px;margin-top:6px}
+  .barrow .bl{font-family:var(--mono);font-size:12px;color:var(--dim);margin-bottom:5px;display:flex;justify-content:space-between}
+  .barrow .bl b{color:var(--ink);font-weight:600}
+  .bar{height:22px;border-radius:4px;background:var(--panel2);overflow:hidden}
+  .bar i{display:block;height:100%;border-radius:4px;transition:width .35s}
+
+  /* diagnostic map */
+  .chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:18px}
+  .rx{display:none;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:22px}
+  .rx.show{display:block}
+  .rx h3{font-family:var(--disp);font-size:19px;margin-bottom:10px}
+  .rx dl{display:grid;grid-template-columns:110px 1fr;gap:8px 14px;font-size:14.5px}
+  .rx dt{font-family:var(--mono);font-size:12px;color:var(--faint);padding-top:2px}
+  .rx dd{color:var(--dim)} .rx dd b{color:var(--ink)} .rx dd code{font-family:var(--mono);font-size:.85em;color:var(--yellow)}
+
+  /* cheat table */
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  th{font-family:var(--mono);font-size:12px;color:var(--faint);text-align:left;font-weight:500;padding:10px 12px;border-bottom:1px solid var(--line)}
+  td{padding:10px 12px;border-bottom:1px solid var(--line);color:var(--dim);vertical-align:top}
+  td code{font-family:var(--mono);font-size:.86em;color:var(--ink)}
+  tr td:first-child{color:var(--ink)}
+
+  footer{margin-top:80px;padding-top:24px;border-top:1px solid var(--line);font-family:var(--mono);font-size:13px;color:var(--faint)}
+  @media(max-width:640px){ .rx dl{grid-template-columns:1fr} .rx dt{padding-top:8px} }
+</style>
+</head>
+<body>
+<main>
+
+<header>
+  <div class="crumb">lab/<b>PRIMER.html</b> — companion to README.md + EXPERT.md</div>
+  <h1>Five facts about the engine.<br>Everything else is a <span class="y">consequence</span>.</h1>
+  <p class="lede">ClickHouse isn't fast because of magic settings. It's fast because of how bytes are laid out on disk — and slow when you fight that layout. <b>Each simulator below is one fact about the engine; each maps to a lab exercise where you prove it on your own box.</b></p>
+</header>
+
+<!-- ================= 1. COLUMNS ================= -->
+<section>
+  <div class="eyebrow">FACT 1 · prove it in <span class="file">sql/01 + sql/02</span></div>
+  <h2>Columns are files</h2>
+  <p class="prose">A row database stores each row together, so reading two columns means dragging every column off disk. ClickHouse stores <b>each column as its own compressed file</b> — a query touches only the files it names. Toggle the layout and watch how many bytes this query actually reads:</p>
+
+  <div class="sim">
+    <div class="q"><span class="kw">SELECT</span> country, <span class="kw">avg</span>(duration_ms) <span class="kw">FROM</span> events <span class="kw">GROUP BY</span> country</div>
+    <div class="sim-head">
+      <span class="sim-title">storage layout — 12 rows × 6 columns</span>
+      <div class="controls">
+        <button class="btn" id="rowBtn">row store</button>
+        <button class="btn active" id="colBtn">column store</button>
+      </div>
+    </div>
+    <div id="tblWrap"></div>
+    <div class="legend"><span><span class="sw" style="background:var(--read)"></span>bytes read</span><span><span class="sw" style="background:var(--panel2)"></span>bytes skipped</span></div>
+    <div class="readout">
+      <div class="stat"><div class="n blue" id="bytesPct">33%</div><div class="l">of table read</div></div>
+      <div class="stat"><div class="n" id="bytesNote">2 / 6</div><div class="l">column files opened</div></div>
+    </div>
+  </div>
+  <p class="takeaway"><b>Consequence:</b> narrow types, <code style="font-family:var(--mono)">LowCardinality</code>, and codecs (exercise 02) multiply this win — smaller files, less I/O, for every query forever. And <b>SELECT *</b> throws the whole advantage away.</p>
+</section>
+
+<!-- ================= 2. GRANULES ================= -->
+<section>
+  <div class="eyebrow">FACT 2 · prove it in <span class="file">sql/01 + sql/06</span> with EXPLAIN indexes=1</div>
+  <h2>The index is sparse — it skips, it never finds</h2>
+  <p class="prose">One index entry per <b>granule</b> of 8,192 rows. The index can't locate a row; it can only say "this block of 8,192 can't match — skip it." Skipping only works if matching rows sit <b>together</b>, and what sits together is decided by <code>ORDER BY</code>. Same query, same data, two sort keys:</p>
+
+  <div class="sim">
+    <div class="q"><span class="kw">SELECT</span> quantile(0.95)(duration_ms) <span class="kw">FROM</span> events <span class="kw">WHERE</span> site_id = <span class="lit">42</span> <span class="kw">AND</span> event_time &gt; now() - <span class="lit">7d</span></div>
+    <div class="sim-head">
+      <span class="sim-title">64 granules · 8,192 rows each</span>
+      <div class="controls">
+        <button class="btn active" id="goodKey">ORDER BY (site_id, time)</button>
+        <button class="btn" id="badKey">ORDER BY user_id</button>
+        <span class="ctl-label">match&nbsp;rate <input type="range" id="sel" min="1" max="25" value="5"> <output id="selOut">5%</output></span>
+      </div>
+    </div>
+    <div class="granules" id="granules"></div>
+    <div class="legend">
+      <span><span class="sw" style="background:var(--yellow)"></span>granules with matches</span>
+      <span><span class="sw" style="background:var(--read)"></span>read &amp; discarded</span>
+      <span><span class="sw" style="background:var(--panel2)"></span>skipped by index</span>
+    </div>
+    <div class="readout">
+      <div class="stat"><div class="n" id="grRead">4 / 64</div><div class="l">granules read</div></div>
+      <div class="stat"><div class="n blue" id="rowsRead">33k</div><div class="l">rows decompressed</div></div>
+      <div class="stat"><div class="n" id="speedup">16×</div><div class="l">vs wrong sort key</div></div>
+    </div>
+  </div>
+  <p class="takeaway"><b>Consequence:</b> <code style="font-family:var(--mono)">ORDER BY</code> is 80% of your performance and is chosen once. Filter columns first, low→high cardinality. When a second query pattern fights the sort key: projections and skip indexes (exercise 06) — extra index structures, same skipping idea.</p>
+</section>
+
+<!-- ================= 3. PARTS & MERGES ================= -->
+<section>
+  <div class="eyebrow">FACT 3 · prove it with <span class="file">make storm-sync / storm-async · sql/03 + sql/11</span></div>
+  <h2>Every insert is a part. Merges are the heartbeat.</h2>
+  <p class="prose">An INSERT never modifies anything — it writes a brand-new immutable <b>part</b> (a directory). Background <b>merges</b> fold small parts into bigger ones, forever. Insert in tiny pieces faster than merges can fold, and parts pile up until the engine throws <b>Too many parts</b>. Drive it yourself:</p>
+
+  <div class="sim">
+    <div class="sim-head">
+      <span class="sim-title">part yard — height = log(rows), color = merge level</span>
+      <div class="controls">
+        <button class="btn warn" id="tinyBtn">50 tiny inserts</button>
+        <button class="btn" id="batchBtn">1 batched insert</button>
+        <button class="btn" id="asyncBtn">async_insert: off</button>
+        <button class="btn" id="mergeBtn">merges: on</button>
+        <button class="btn" id="resetYard">reset</button>
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px">
+      <span class="ctl-label">server buffer</span><div class="buffer"><i id="bufFill"></i></div>
+      <span class="ctl-label" id="bufNote">async off — every insert hits disk as a part</span>
+    </div>
+    <div class="yard" id="yard"></div>
+    <div class="alarm" id="alarm"></div>
+    <div class="readout">
+      <div class="stat"><div class="n" id="partCount">0</div><div class="l">active parts</div></div>
+      <div class="stat"><div class="n ok" id="mergeCount">0</div><div class="l">merges completed</div></div>
+      <div class="stat"><div class="n red">40 / 60</div><div class="l">delay / throw threshold (scaled for demo)</div></div>
+    </div>
+  </div>
+  <p class="takeaway"><b>Consequence:</b> batch on the client, or let <code style="font-family:var(--mono)">async_insert=1</code> batch on the server (toggle it above, then spam tiny inserts). Exercise 11 lets you freeze real merges with <code style="font-family:var(--mono)">SYSTEM STOP MERGES</code> and watch the same disease in Grafana. Immutable parts are also why <b>partition DROP is instant</b> and row mutations are slow — design for the former.</p>
+</section>
+
+<!-- ================= 4. ROLLUPS ================= -->
+<section>
+  <div class="eyebrow">FACT 4 · prove it in <span class="file">sql/05 + sql/13 + sql/07</span></div>
+  <h2>Pay at write time, once — not at read time, forever</h2>
+  <p class="prose">A materialized view is an insert trigger: each incoming block is aggregated into a rollup table as it arrives. Dashboards then read thousands of pre-aggregated rows instead of re-scanning millions of raw ones — and the query cache collapses repeated reads to one real query per TTL. This is the entire "real-time without autoscaling" argument, in numbers you choose:</p>
+
+  <div class="sim">
+    <div class="sim-head">
+      <span class="sim-title">rows scanned per day by ONE dashboard panel (24h window)</span>
+      <div class="controls">
+        <span class="ctl-label">ingest <input type="range" id="evtSlider" min="0" max="100" value="50"> <output id="evtOut">100M/day</output></span>
+        <span class="ctl-label">refresh <input type="range" id="refSlider" min="0" max="100" value="30"> <output id="refOut">10s</output></span>
+      </div>
+    </div>
+    <div class="bars">
+      <div class="barrow"><div class="bl"><span>raw table scan</span><b id="rawN">—</b></div><div class="bar"><i id="rawBar" style="background:var(--danger)"></i></div></div>
+      <div class="barrow"><div class="bl"><span>1-minute rollup (MV)</span><b id="mvN">—</b></div><div class="bar"><i id="mvBar" style="background:var(--read)"></i></div></div>
+      <div class="barrow"><div class="bl"><span>rollup + query cache (TTL 30s)</span><b id="qcN">—</b></div><div class="bar"><i id="qcBar" style="background:var(--ok)"></i></div></div>
+    </div>
+    <div class="readout">
+      <div class="stat"><div class="n ok" id="saveN">—</div><div class="l">cheaper than raw scans</div></div>
+      <div class="stat"><div class="n" id="storeN">~0.7M</div><div class="l">rollup rows stored/day, regardless of traffic</div></div>
+    </div>
+  </div>
+  <p class="takeaway"><b>Consequence:</b> dashboards read rollups, never raw. Raw data gets a TTL and becomes a short-lived debugging buffer (exercise 07). Query cost stops depending on traffic — which is precisely the dependency autoscaling charges you for.</p>
+</section>
+
+<!-- ================= 5. TELEMETRY ================= -->
+<section>
+  <div class="eyebrow">FACT 5 · prove it in <span class="file">sql/10</span> — ProfileEvents, trace_log, EXPLAIN PIPELINE</div>
+  <h2>The engine narrates itself</h2>
+  <p class="prose">Every query leaves ~400 counters in <code>system.query_log</code>; the sampling profiler captures its C++ stacks; <code>EXPLAIN</code> predicts its reads before it runs. <b>Mastery is one habit: predict → run → diff the telemetry.</b> A wrong prediction marks the gap in your mental model. Where to look:</p>
+  <div class="sim" style="padding:0;overflow-x:auto">
+    <table>
+      <tr><th>question</th><th>instrument</th><th>watch in grafana</th></tr>
+      <tr><td>Why was this query slow?</td><td><code>query_log → ProfileEvents</code> diff between two variants</td><td>Query latency · Rows read</td></tr>
+      <tr><td>Will it scan the whole table?</td><td><code>EXPLAIN indexes=1</code> — the Granules: x/y line</td><td>—</td></tr>
+      <tr><td>Are inserts healthy?</td><td><code>system.parts</code> (levels), <code>part_log</code>, <code>asynchronous_inserts</code></td><td>Active parts · Async flushes</td></tr>
+      <tr><td>Are merges keeping up?</td><td><code>system.merges</code>, NewPart:MergeParts ratio</td><td>Merges running</td></tr>
+      <tr><td>Where did the CPU go?</td><td><code>trace_log</code> + query_profiler (exercise 10D)</td><td>Memory tracked</td></tr>
+      <tr><td>Who's hurting the box now?</td><td><code>system.processes</code> → <code>KILL QUERY</code></td><td>everything at once</td></tr>
+    </table>
+  </div>
+</section>
+
+<!-- ================= DIAGNOSTIC MAP ================= -->
+<section>
+  <div class="eyebrow">THE OPTIMIZATION MAP · symptom → primitive → fix → exercise</div>
+  <h2>What hurts?</h2>
+  <p class="prose">Every ClickHouse problem is one of the five facts being violated. Pick the symptom:</p>
+  <div class="chips" id="chips"></div>
+  <div id="rxWrap"></div>
+</section>
+
+<footer>
+  spin it up: <b style="color:var(--ink)">colima start → make up → make seed</b> · dashboard at localhost:3000 · exercises in sql/01–22 ·
+  when your predictions land within 20%, you're fluent.
+</footer>
+
+</main>
+<script>
+/* ---------- sim 1: columns ---------- */
+(function(){
+  const wrap = document.getElementById('tblWrap');
+  const cols = ['time','user_id','site_id','country','url','duration'];
+  const readCols = new Set([3,5]); // country, duration
+  const ROWS = 12;
+  let mode = 'col';
+  function render(){
+    let h = '<div class="tbl" style="grid-template-columns:repeat(6,1fr)">';
+    cols.forEach(c=>h+=`<div class="col-label">${c}</div>`);
+    for(let r=0;r<ROWS;r++) for(let c=0;c<6;c++){
+      const read = mode==='row' ? true : readCols.has(c);
+      h += `<div class="cell ${read?'read':''}"></div>`;
+    }
+    h += '</div>';
+    wrap.innerHTML = h;
+    document.getElementById('bytesPct').textContent = mode==='row' ? '100%' : '33%';
+    document.getElementById('bytesPct').className = 'n ' + (mode==='row'?'red':'blue');
+    document.getElementById('bytesNote').textContent = mode==='row' ? 'all rows dragged' : '2 / 6';
+  }
+  const rb=document.getElementById('rowBtn'), cb=document.getElementById('colBtn');
+  rb.onclick=()=>{mode='row';rb.classList.add('active');cb.classList.remove('active');render();};
+  cb.onclick=()=>{mode='col';cb.classList.add('active');rb.classList.remove('active');render();};
+  render();
+})();
+
+/* ---------- sim 2: granules ---------- */
+(function(){
+  const G=64, box=document.getElementById('granules');
+  for(let i=0;i<G;i++){const d=document.createElement('div');d.className='gr';box.appendChild(d);}
+  const cells=[...box.children];
+  let good=true;
+  function render(){
+    const f = +document.getElementById('sel').value/100;
+    document.getElementById('selOut').textContent = Math.round(f*100)+'%';
+    const hitG = Math.max(1, Math.round(G*f));
+    cells.forEach(c=>c.className='gr');
+    let read;
+    if(good){
+      const start = 20; // contiguous run
+      for(let i=0;i<hitG;i++) cells[(start+i)%G].classList.add('hit');
+      // index granularity slop: one scanned-and-discarded granule each side
+      cells[(start-1+G)%G].classList.add('scan');
+      cells[(start+hitG)%G].classList.add('scan');
+      read = hitG+2;
+    } else {
+      // matches scattered: with 8192 rows/granule, every granule contains some
+      cells.forEach((c,i)=> c.classList.add(i%Math.max(1,Math.round(1/f))===0 ? 'hit':'scan'));
+      read = G;
+    }
+    document.getElementById('grRead').textContent = read+' / '+G;
+    document.getElementById('rowsRead').textContent = Math.round(read*8.192)+'k';
+    document.getElementById('speedup').textContent = good ? Math.round(G/(hitG+2))+'×' : '1×';
+    document.getElementById('speedup').className = 'n ' + (good?'':'red');
+  }
+  const g=document.getElementById('goodKey'), b=document.getElementById('badKey');
+  g.onclick=()=>{good=true;g.classList.add('active');b.classList.remove('active');render();};
+  b.onclick=()=>{good=false;b.classList.add('active');g.classList.remove('active');render();};
+  document.getElementById('sel').oninput=render;
+  render();
+})();
+
+/* ---------- sim 3: parts & merges ---------- */
+(function(){
+  const yard=document.getElementById('yard');
+  let parts=[], merges=0, asyncOn=false, mergesOn=true, buf=0, throttled=false;
+  const DELAY=40, THROW=60;
+  const h=r=>Math.min(110, 8+Math.log2(r)*9);
+
+  function draw(){
+    yard.innerHTML='';
+    parts.forEach(p=>{
+      const d=document.createElement('div');
+      d.className='part'+(p.lvl?` lvl${Math.min(p.lvl,4)}`:'')+(p.m?' merging':'');
+      d.style.height=h(p.rows)+'px';
+      yard.appendChild(d);
+    });
+    const pc=document.getElementById('partCount');
+    pc.textContent=parts.length;
+    pc.className='n '+(parts.length>=DELAY?'red':'');
+    document.getElementById('mergeCount').textContent=merges;
+    const al=document.getElementById('alarm');
+    if(parts.length>=THROW){ al.textContent='DB::Exception: Too many parts ('+parts.length+'). Inserts rejected.'; throttled=true; }
+    else if(parts.length>=DELAY){ al.textContent='backpressure: inserts are being delayed (parts_to_delay_insert)'; throttled=false; }
+    else { al.textContent=''; throttled=false; }
+  }
+  function addPart(rows){ if(parts.length>=THROW) return; parts.push({rows,lvl:0}); }
+
+  document.getElementById('tinyBtn').onclick=()=>{
+    let i=0;
+    const t=setInterval(()=>{
+      if(i++>=50||parts.length>=THROW){clearInterval(t);return;}
+      if(asyncOn){ buf+=1; document.getElementById('bufFill').style.width=Math.min(100,buf*4)+'%'; }
+      else addPart(1);
+      draw();
+    }, throttled?120:35);
+  };
+  document.getElementById('batchBtn').onclick=()=>{ addPart(500000); draw(); };
+  const ab=document.getElementById('asyncBtn');
+  ab.onclick=()=>{ asyncOn=!asyncOn; ab.textContent='async_insert: '+(asyncOn?'on':'off'); ab.classList.toggle('active',asyncOn);
+    document.getElementById('bufNote').textContent = asyncOn?'async on — buffering, flushes ~1/sec':'async off — every insert hits disk as a part'; };
+  const mb=document.getElementById('mergeBtn');
+  mb.onclick=()=>{ mergesOn=!mergesOn; mb.textContent='merges: '+(mergesOn?'on':'off'); mb.classList.toggle('warn',!mergesOn);
+    mb.style.borderColor = mergesOn?'':'var(--danger)'; };
+  document.getElementById('resetYard').onclick=()=>{ parts=[];merges=0;buf=0;document.getElementById('bufFill').style.width='0%';draw(); };
+
+  // async flush loop
+  setInterval(()=>{ if(asyncOn&&buf>0){ addPart(buf*1000); buf=0; document.getElementById('bufFill').style.width='0%'; draw(); } },1000);
+  // merge loop: fold up to 5 smallest same-ish parts into one
+  setInterval(()=>{
+    if(!mergesOn||parts.length<6) return;
+    parts.sort((a,b)=>a.rows-b.rows);
+    const take=parts.splice(0,5);
+    take.forEach(p=>p.m=true); draw();
+    setTimeout(()=>{
+      parts.push({rows:take.reduce((s,p)=>s+p.rows,0), lvl:Math.max(...take.map(p=>p.lvl))+1});
+      merges++; draw();
+    },280);
+  },800);
+  draw();
+})();
+
+/* ---------- sim 4: rollup economics ---------- */
+(function(){
+  const fmt=n=>{ if(n>=1e12)return (n/1e12).toFixed(1)+'T'; if(n>=1e9)return (n/1e9).toFixed(1)+'B';
+                 if(n>=1e6)return (n/1e6).toFixed(1)+'M'; if(n>=1e3)return (n/1e3).toFixed(0)+'k'; return Math.round(n); };
+  function render(){
+    const ev = Math.round(Math.pow(10, 6 + (+evt.value/100)*3.5));      // 1M .. ~300B? -> 1e6..1e9.5
+    const refS = Math.round(Math.pow(10, 0.3 + (+ref.value/100)*2.25)); // 2s .. ~350s
+    document.getElementById('evtOut').textContent = fmt(ev)+'/day';
+    document.getElementById('refOut').textContent = refS+'s';
+    const queries = 86400/refS;
+    const raw = ev*queries;                       // full 24h raw scan each refresh
+    const mvRows = Math.min(1440*500, ev);        // per-minute x 500 sites cap
+    const mv = mvRows*queries;
+    const qc = mvRows*(86400/Math.max(30,refS));  // real queries gated by 30s TTL
+    const max = raw;
+    const set=(bar,n,v)=>{ document.getElementById(bar).style.width=Math.max(1.5,(Math.log10(v)/Math.log10(max))*100)+'%';
+                           document.getElementById(n).textContent=fmt(v)+' rows/day'; };
+    set('rawBar','rawN',raw); set('mvBar','mvN',mv); set('qcBar','qcN',qc);
+    document.getElementById('saveN').textContent = fmt(raw/qc)+'×';
+  }
+  const evt=document.getElementById('evtSlider'), ref=document.getElementById('refSlider');
+  evt.oninput=render; ref.oninput=render; render();
+})();
+
+/* ---------- diagnostic map ---------- */
+(function(){
+  const RX = [
+    {chip:'SELECTs are slow', t:'A query reads far more than it returns', d:{
+      'primitive':'Fact 2 — the sparse index isn\'t skipping.',
+      'diagnose':'<code>EXPLAIN indexes=1</code> → Granules x/y near 100%? <code>ProfileEvents.SelectedGranules</code> huge?',
+      'fix':'<b>ORDER BY matching the filter</b> (rebuild or add a projection); skip index for the stray column; PREWHERE; stop SELECT *.',
+      'exercise':'<code>sql/01</code>, <code>sql/06</code>, <code>sql/13</code> · panel: Rows read per SELECT'}},
+    {chip:'"Too many parts"', t:'Inserts outrun merges', d:{
+      'primitive':'Fact 3 — each tiny insert births a part.',
+      'diagnose':'Active parts panel climbing; <code>part_log</code> NewPart count ≫ MergeParts; many level-0 parts.',
+      'fix':'<b>Batch inserts</b> (10k–500k rows) or <code>async_insert=1</code>; one table per stream, not hundreds; never INSERT per row.',
+      'exercise':'<code>sql/03</code>, <code>sql/11</code>, <code>make storm-sync</code> vs <code>storm-async</code>'}},
+    {chip:'Query OOMs', t:'GROUP BY / JOIN builds a giant hash table', d:{
+      'primitive':'Fact 1+5 — aggregation state lives in RAM, and the engine told you (memory_usage in query_log).',
+      'diagnose':'Memory panel spike; <code>ProfileEvents.ExternalAggregation*</code> = 0 means it never spilled, it just died.',
+      'fix':'<code>max_bytes_before_external_group_by</code> to spill; <code>optimize_aggregation_in_order=1</code> when keys prefix the sort key; dictionaries instead of JOINs; cap with <code>max_memory_usage</code> so it fails fast.',
+      'exercise':'<code>sql/04</code>, <code>sql/13</code>, <code>sql/14</code> · panel: Memory tracked'}},
+    {chip:'Dashboard lags / costs grow', t:'Reads scale with traffic', d:{
+      'primitive':'Fact 4 — you\'re paying at read time, repeatedly.',
+      'diagnose':'Same heavy query shape dominating the top-10 query_log report; raw table in every dashboard query.',
+      'fix':'<b>MV rollups</b> (minute→hour chain), dashboards read only rollups, <code>use_query_cache=1</code> with a TTL ≈ refresh.',
+      'exercise':'<code>sql/05</code>, <code>sql/13A</code> · the live loop in exercise 05 is the whole pattern'}},
+    {chip:'Disk fills up', t:'Raw data treated as the product', d:{
+      'primitive':'Fact 3 — immutable parts accumulate until something deletes them.',
+      'diagnose':'<code>system.parts</code> by table size; oldest min_date months back.',
+      'fix':'<b>TTL on raw</b> (delete / RECOMPRESS / TO VOLUME cold-S3); rollups keep history; partition DROP for instant purges — never ALTER DELETE.',
+      'exercise':'<code>sql/07</code>, <code>sql/11</code> partition surgery'}},
+    {chip:'Updates/dedup needed', t:'OLTP instincts on an immutable store', d:{
+      'primitive':'Fact 3 — parts don\'t mutate; merges can dedupe eventually.',
+      'diagnose':'You\'re writing ALTER UPDATE in a loop, or counts include duplicates.',
+      'fix':'<b>ReplacingMergeTree(version)</b> + argMax or parallel FINAL at read; CDC streams land as versioned rows; truly relational state stays in Postgres (and joins in via dictionary).',
+      'exercise':'<code>sql/13D</code>, <code>sql/22</code>'}},
+    {chip:'One user kills the box', t:'No isolation between workloads', d:{
+      'primitive':'Fact 5 — plus the fixed-box doctrine: caps create a known worst case.',
+      'diagnose':'<code>system.processes</code> shows one query holding all threads/RAM while ingestion stalls.',
+      'fix':'Settings profiles per role (<code>max_memory_usage</code>, <code>max_threads</code>, <code>max_execution_time</code>), quotas, priorities, KILL QUERY. Counterintuitive: capping threads raises total throughput.',
+      'exercise':'<code>sql/14</code>, <code>make torture-reads</code>'}},
+    {chip:'Getting data in from X', t:'Integration feels like a project', d:{
+      'primitive':'Every external system is just a table (functions/engines).',
+      'diagnose':'You\'re writing a custom sync service before checking if a FROM clause does it.',
+      'fix':'Pull: <code>url()/s3()/postgresql()</code> + INSERT SELECT; dims via dictionaries; scheduled sync via refreshable MVs; streams via Kafka engine + MV pump.',
+      'exercise':'<code>sql/20–22</code>, <code>make kafka-storm</code>'}}
+  ];
+  const chips=document.getElementById('chips'), wrap=document.getElementById('rxWrap');
+  RX.forEach((r,i)=>{
+    const b=document.createElement('button'); b.className='btn'+(i===0?' active':''); b.textContent=r.chip;
+    b.onclick=()=>{ [...chips.children].forEach(c=>c.classList.remove('active')); b.classList.add('active');
+                    [...wrap.children].forEach((c,j)=>c.classList.toggle('show',j===i)); };
+    chips.appendChild(b);
+    const card=document.createElement('div'); card.className='rx'+(i===0?' show':'');
+    card.innerHTML = `<h3>${r.t}</h3><dl>`+Object.entries(r.d).map(([k,v])=>`<dt>${k}</dt><dd>${v}</dd>`).join('')+'</dl>';
+    wrap.appendChild(card);
+  });
+})();
+</script>
+</body>
+</html>

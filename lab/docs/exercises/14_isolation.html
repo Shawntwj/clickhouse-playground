@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lab 14 · Isolation — abuse-proof the box</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#16181d;--panel:#1e2128;--panel2:#23262e;--line:#31353f;--ink:#e8e6df;--dim:#989ca6;--faint:#6b7078;--yellow:#f5c518;--read:#5fa8ff;--danger:#ff5d52;--ok:#5ad08a;--mono:'IBM Plex Mono',ui-monospace,monospace;--disp:'Space Grotesk',sans-serif;--body:'Inter',system-ui,sans-serif}
+  *{box-sizing:border-box;margin:0;padding:0}body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.65}main{max-width:980px;margin:0 auto;padding:0 20px 120px}a{color:var(--yellow)}::selection{background:var(--yellow);color:#16181d}
+  header{padding:64px 0 40px;border-bottom:1px solid var(--line)}.crumb{font-family:var(--mono);font-size:13px;color:var(--faint)}.crumb b{color:var(--yellow);font-weight:500}.crumb a{color:var(--faint);text-decoration:none}.crumb a:hover{color:var(--yellow)}
+  h1{font-family:var(--disp);font-weight:700;font-size:clamp(30px,5vw,46px);line-height:1.08;margin:14px 0;letter-spacing:-.02em}h1 .y{color:var(--yellow)}.lede{max-width:680px;color:var(--dim);font-size:17px}.lede b{color:var(--ink);font-weight:600}
+  .meta{display:flex;flex-wrap:wrap;gap:18px;margin-top:22px;font-family:var(--mono);font-size:12.5px;color:var(--faint)}.meta b{color:var(--ink);font-weight:500}
+  section{padding:48px 0 8px;border-bottom:1px solid var(--line)}section:last-of-type{border-bottom:none}
+  .eyebrow{font-family:var(--mono);font-size:12.5px;color:var(--faint);margin-bottom:10px;letter-spacing:.04em;text-transform:uppercase}.eyebrow b{color:var(--yellow);font-weight:500}
+  h2{font-family:var(--disp);font-weight:700;font-size:clamp(22px,3vw,28px);letter-spacing:-.01em;margin-bottom:14px}h3{font-family:var(--disp);font-weight:500;font-size:18px;margin:22px 0 8px}
+  p.prose{max-width:680px;color:var(--dim);margin-bottom:14px}p.prose b{color:var(--ink);font-weight:600}p.prose code,.inline{font-family:var(--mono);font-size:.88em;background:var(--panel2);padding:2px 6px;border-radius:4px;color:var(--ink)}
+  pre.sql,pre.shell,pre.diagram{font-family:var(--mono);font-size:13px;line-height:1.55;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:16px 18px;overflow-x:auto;margin:12px 0 14px;color:var(--ink);white-space:pre}
+  pre.shell{border-left:3px solid var(--read)}pre.sql{border-left:3px solid var(--yellow)}pre.diagram{border-left:3px solid var(--faint);color:var(--dim)}
+  pre .kw{color:var(--read)}pre .lit{color:var(--yellow)}pre .com{color:var(--faint);font-style:italic}pre .ok{color:var(--ok)}pre .bad{color:var(--danger)}
+  .step{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:20px 22px;margin:18px 0}.step-h{display:flex;flex-wrap:wrap;align-items:baseline;gap:10px;margin-bottom:6px}.step-n{font-family:var(--mono);font-size:11px;color:var(--yellow);background:var(--panel2);padding:3px 8px;border-radius:4px;font-weight:600}.step-t{font-family:var(--disp);font-size:17px;font-weight:600}
+  .expect{border-left:3px solid var(--ok);padding:6px 0 6px 14px;color:var(--dim);font-size:14.5px;margin:10px 0 0;max-width:660px}.expect b{color:var(--ink)}.expect .num{color:var(--yellow);font-family:var(--mono);font-weight:600}
+  .gotcha{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--danger);border-radius:8px;padding:14px 18px;margin:10px 0;color:var(--dim);max-width:720px}.gotcha b{color:var(--ink);font-weight:600}.gotcha .tag{font-family:var(--mono);font-size:11px;color:var(--danger);text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:4px}
+  .takeaway{border-left:3px solid var(--yellow);padding:6px 0 6px 16px;color:var(--ink);max-width:680px;margin:12px 0 0;font-size:15.5px}.takeaway b{color:var(--yellow)}
+  table{width:100%;border-collapse:collapse;font-size:14px;margin:12px 0 18px}th{font-family:var(--mono);font-size:11.5px;color:var(--faint);text-align:left;font-weight:500;padding:10px 12px;border-bottom:1px solid var(--line);text-transform:uppercase;letter-spacing:.04em}td{padding:10px 12px;border-bottom:1px solid var(--line);color:var(--dim);vertical-align:top}td code{font-family:var(--mono);font-size:.86em;color:var(--ink);background:var(--panel2);padding:2px 6px;border-radius:3px}tr td:first-child{color:var(--ink);font-weight:500}
+  .next{display:flex;flex-wrap:wrap;gap:14px;margin-top:18px}.next a{display:block;flex:1 1 280px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px 16px;text-decoration:none;color:var(--dim);transition:border-color .15s}.next a:hover{border-color:var(--yellow)}.next .nx-eyebrow{font-family:var(--mono);font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px}.next .nx-t{color:var(--ink);font-weight:600;font-size:15px}
+  footer{margin-top:60px;padding-top:24px;border-top:1px solid var(--line);font-family:var(--mono);font-size:13px;color:var(--faint)}
+</style>
+</head>
+<body><main>
+
+<header>
+  <div class="crumb"><a href="../../../README.md">clickhouse-playground</a> / <a href="../../README.md">lab</a> / <a href="index.html">exercises</a> / <b>14 · isolation</b></div>
+  <h1>The replacement for <span class="y">autoscaling</span>.</h1>
+  <p class="lede">Make abuse — yours or an analyst's — degrade gracefully. Memory ceilings per role. Quotas. Priorities. The kill switch. With four cheap rules a single well-sized server has a <b>known</b> worst case, which is the thing autoscaling charges you to avoid knowing.</p>
+  <div class="meta">
+    <span>File · <b>lab/sql/14_isolation.sql</b></span>
+    <span>Reading · <b>~10 min</b></span>
+    <span>Level · <b>Expert</b></span>
+    <span>Prereq · <b>make seed</b></span>
+  </div>
+</header>
+
+<section>
+  <div class="eyebrow"><b>A</b> · Memory ceilings per role</div>
+  <h2>Fail fast instead of OOMing the box</h2>
+  <pre class="sql"><span class="kw">CREATE USER IF NOT EXISTS</span> analyst <span class="kw">IDENTIFIED WITH</span> plaintext_password <span class="kw">BY</span> <span class="lit">'analyst'</span>;
+<span class="kw">GRANT SELECT</span> <span class="kw">ON</span> lab.* <span class="kw">TO</span> analyst;
+
+<span class="kw">CREATE SETTINGS PROFILE IF NOT EXISTS</span> analyst_profile <span class="kw">SETTINGS</span>
+    max_memory_usage = <span class="lit">1500000000</span>,            <span class="com">-- 1.5GB per query: fail fast</span>
+    max_bytes_before_external_group_by = <span class="lit">750000000</span>,  <span class="com">-- spill before failing</span>
+    max_execution_time = <span class="lit">30</span>,                  <span class="com">-- no runaway scans</span>
+    max_threads = <span class="lit">2</span>,                          <span class="com">-- leave cores for ingestion</span>
+    max_rows_to_read = <span class="lit">500000000</span>
+<span class="kw">TO</span> analyst;</pre>
+  <p class="prose">Prove it. Connect as the analyst and run a monster:</p>
+  <pre class="shell">docker exec -it clickhouse clickhouse-client -u analyst --password analyst</pre>
+  <pre class="sql"><span class="kw">SELECT</span> user_id, groupArray(url) <span class="kw">FROM</span> lab.events <span class="kw">GROUP BY</span> user_id;</pre>
+  <p class="expect">
+    Dies with <code>MEMORY_LIMIT_EXCEEDED</code> at 1.5 GB. <b>Ingestion never notices.</b> Watch the Memory panel — a sharp peak that hits a ceiling and stops.
+  </p>
+</section>
+
+<section>
+  <div class="eyebrow"><b>B</b> · Quotas</div>
+  <h2>Rate limits in SQL</h2>
+  <pre class="sql"><span class="kw">CREATE QUOTA IF NOT EXISTS</span> analyst_quota
+    <span class="kw">FOR INTERVAL</span> <span class="lit">1</span> <span class="kw">hour</span> <span class="kw">MAX</span> queries = <span class="lit">500</span>, read_rows = <span class="lit">10000000000</span>
+    <span class="kw">TO</span> analyst;
+
+<span class="kw">SELECT</span> * <span class="kw">FROM</span> system.quotas_usage;</pre>
+  <p class="prose">"This analyst gets 500 queries per hour, totaling no more than 10 billion rows read." Cross either threshold and queries get rejected with a clear error.</p>
+</section>
+
+<section>
+  <div class="eyebrow"><b>C</b> · Priorities &amp; concurrency</div>
+  <h2>Who waits when the box is busy</h2>
+  <pre class="sql"><span class="com">-- Per-query priority (lower number = more important):</span>
+<span class="kw">SELECT</span> ... <span class="kw">SETTINGS</span> priority = <span class="lit">0</span>;    <span class="com">-- dashboards</span>
+<span class="kw">SELECT</span> ... <span class="kw">SETTINGS</span> priority = <span class="lit">10</span>;   <span class="com">-- batch/analyst</span></pre>
+  <p class="prose">Server-side caps live in <code>config.xml</code>:</p>
+  <table>
+    <thead><tr><th>Setting</th><th>What it caps</th></tr></thead>
+    <tbody>
+      <tr><td><code>max_concurrent_queries</code></td><td>Hard limit on running queries</td></tr>
+      <tr><td><code>background_pool_size</code></td><td>Merge thread count — fewer = slower merges</td></tr>
+      <tr><td><code>max_server_memory_usage</code></td><td>Total RAM the server is allowed</td></tr>
+      <tr><td><code>max_memory_usage_for_user</code></td><td>RAM ceiling per user (sums across their queries)</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section>
+  <div class="eyebrow"><b>D</b> · The kill switch</div>
+  <h2>When something runaway</h2>
+  <pre class="sql"><span class="kw">SELECT</span> query_id, elapsed, formatReadableSize(memory_usage) <span class="kw">AS</span> mem,
+       substring(query, <span class="lit">1</span>, <span class="lit">60</span>) <span class="kw">AS</span> q
+<span class="kw">FROM</span> system.processes <span class="kw">ORDER BY</span> elapsed <span class="kw">DESC</span>;
+
+<span class="kw">KILL QUERY WHERE</span> query_id = <span class="lit">'...'</span>;
+<span class="kw">KILL QUERY WHERE</span> user = <span class="lit">'analyst'</span>;            <span class="com">-- nuke a whole role</span>
+<span class="kw">KILL MUTATION WHERE</span> table = <span class="lit">'firehose'</span>;       <span class="com">-- stop a runaway ALTER</span></pre>
+</section>
+
+<section>
+  <div class="eyebrow"><b>E</b> · The fixed-box doctrine</div>
+  <h2>Memorize these four</h2>
+  <ol style="margin-left:22px;color:var(--dim);max-width:680px">
+    <li style="margin:10px 0"><b>Ingestion path gets reserved capacity</b> (threads, memory). It must never compete with reads.</li>
+    <li style="margin:10px 0"><b>Every human/service gets a profile</b> with memory + time + thread caps.</li>
+    <li style="margin:10px 0"><b>Dashboards read rollups behind the query cache</b> (exercise 13).</li>
+    <li style="margin:10px 0"><b>Raw data has a TTL</b> (exercise 07). Disks fill on schedule, not by surprise.</li>
+  </ol>
+  <p class="takeaway"><b>With these four, a single well-sized server has a known worst case.</b> Which is exactly the thing autoscaling bills you to avoid knowing.</p>
+</section>
+
+<section>
+  <div class="eyebrow"><b>F</b> · Gotchas</div>
+  <h2>What experts know</h2>
+  <div class="gotcha"><span class="tag">Trap</span>
+    <b>Profiles don't apply retroactively.</b> A connection that opened before the profile was attached keeps its old settings until reconnect.
+  </div>
+  <div class="gotcha"><span class="tag">Trap</span>
+    <b><code>max_memory_usage</code> is per query, not per user.</b> A user running 10 parallel queries still totals 10× that limit. Use <code>max_memory_usage_for_user</code> (server config) for the global cap.
+  </div>
+  <div class="gotcha"><span class="tag">Pattern</span>
+    <b>Memory limit + spill-to-disk threshold is the killer combo.</b> Set the spill (<code>max_bytes_before_external_group_by</code>) at ~50% of memory — queries either fit comfortably or fail visibly without ever pushing the box into swap.
+  </div>
+</section>
+
+<section>
+  <div class="eyebrow"><b>G</b> · Next</div>
+  <p class="prose">You've finished the expert track. Integrations next — every external system is just a table.</p>
+  <div class="next">
+    <a href="20_pull_anything.html"><div class="nx-eyebrow">Lab · 20</div><div class="nx-t">Pull anything — table functions →</div></a>
+    <a href="21_kafka_pipeline.html"><div class="nx-eyebrow">Lab · 21</div><div class="nx-t">Kafka pipeline — the canonical streaming integration →</div></a>
+  </div>
+</section>
+
+<footer>lab/sql/14_isolation.sql · part of clickhouse-playground</footer>
+</main></body></html>

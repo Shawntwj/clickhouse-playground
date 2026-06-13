@@ -32,7 +32,7 @@
           "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse_uid" },
           "rawSql": "SELECT\n  toStartOfMinute(event_time) AS time,\n  if(query LIKE '%FINAL%', 'FINAL query', 'non-FINAL query') AS query_type,\n  avg(query_duration_ms) AS avg_duration_ms\nFROM system.query_log\nWHERE\n  event_time >= $__fromTime\n  AND event_time <= $__toTime\n  AND type = 'QueryFinish'\n  AND query NOT LIKE '%system.%'\nGROUP BY time, query_type\nORDER BY time ASC",
           "refId": "A",
-          "format": "time_series"
+          "format": "AUTO"
         }
       ],
       "title": "Avg Query Duration — FINAL vs non-FINAL",
@@ -132,7 +132,7 @@
           "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse_uid" },
           "rawSql": "SELECT\n  toStartOfMinute(event_time) AS time,\n  if(query LIKE '%FINAL%', 'FINAL', 'dictGet') AS approach,\n  avg(memory_usage) AS avg_memory_bytes\nFROM system.query_log\nWHERE\n  event_time >= $__fromTime AND event_time <= $__toTime\n  AND type = 'QueryFinish'\n  AND (query LIKE '%FINAL%' OR query LIKE '%dictGet%')\n  AND query NOT LIKE '%system.%'\nGROUP BY time, approach\nORDER BY time ASC",
           "refId": "A",
-          "format": "time_series"
+          "format": "AUTO"
         }
       ],
       "title": "Memory Usage — FINAL vs dictGet",
@@ -189,7 +189,7 @@
           "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse_uid" },
           "rawSql": "SELECT\n  toStartOfMinute(event_time)    AS time,\n  concat(database, '.', name)    AS dict_name,\n  bytes_allocated / 1e3          AS kb_in_memory\nFROM system.dictionaries\nCROSS JOIN (\n  SELECT toStartOfMinute(now()) AS event_time\n  FROM numbers(1)\n) t\nORDER BY time ASC",
           "refId": "A",
-          "format": "time_series"
+          "format": "AUTO"
         }
       ],
       "title": "Dictionary Load Status Over Time",

@@ -1,0 +1,126 @@
+{
+  "uid": "ch-lab",
+  "title": "ClickHouse Lab — Feedback Loop",
+  "timezone": "browser",
+  "refresh": "5s",
+  "time": { "from": "now-15m", "to": "now" },
+  "schemaVersion": 39,
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "Inserted rows / sec",
+      "description": "From system.metric_log. Watch this while running the async-insert exercise.",
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "refId": "A",
+          "editorType": "sql",
+          "format": 0,
+          "rawSql": "SELECT event_time AS time, sum(ProfileEvent_InsertedRows) AS inserted_rows FROM system.metric_log WHERE event_time >= $__fromTime AND event_time <= $__toTime GROUP BY time ORDER BY time"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Active parts (PartsActive metric)",
+      "description": "THE chart for insert health. Spiky growth = too many small inserts. Sawtooth = merges keeping up.",
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "targets": [
+        {
+          "refId": "A",
+          "editorType": "sql",
+          "format": 0,
+          "rawSql": "SELECT event_time AS time, max(CurrentMetric_PartsActive) AS active_parts FROM system.metric_log WHERE event_time >= $__fromTime AND event_time <= $__toTime GROUP BY time ORDER BY time"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Query latency p50 / p95 (ms)",
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "targets": [
+        {
+          "refId": "A",
+          "editorType": "sql",
+          "format": 0,
+          "rawSql": "SELECT toStartOfInterval(event_time, INTERVAL 10 second) AS time, quantile(0.5)(query_duration_ms) AS p50, quantile(0.95)(query_duration_ms) AS p95 FROM system.query_log WHERE type = 'QueryFinish' AND query_kind = 'Select' AND event_time >= $__fromTime AND event_time <= $__toTime GROUP BY time ORDER BY time"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Rows read per SELECT (avg)",
+      "description": "Schema/index quality. If you read 20M rows to answer a 1-row question, your ORDER BY is wrong.",
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "targets": [
+        {
+          "refId": "A",
+          "editorType": "sql",
+          "format": 0,
+          "rawSql": "SELECT toStartOfInterval(event_time, INTERVAL 10 second) AS time, avg(read_rows) AS avg_rows_read FROM system.query_log WHERE type = 'QueryFinish' AND query_kind = 'Select' AND event_time >= $__fromTime AND event_time <= $__toTime GROUP BY time ORDER BY time"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Memory tracked (bytes)",
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 16 },
+      "fieldConfig": { "defaults": { "unit": "bytes" }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "editorType": "sql",
+          "format": 0,
+          "rawSql": "SELECT event_time AS time, max(CurrentMetric_MemoryTracking) AS memory FROM system.metric_log WHERE event_time >= $__fromTime AND event_time <= $__toTime GROUP BY time ORDER BY time"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Merges running",
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 16 },
+      "targets": [
+        {
+          "refId": "A",
+          "editorType": "sql",
+          "format": 0,
+          "rawSql": "SELECT event_time AS time, max(CurrentMetric_Merge) AS merges FROM system.metric_log WHERE event_time >= $__fromTime AND event_time <= $__toTime GROUP BY time ORDER BY time"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Async insert flushes / sec",
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 16 },
+      "targets": [
+        {
+          "refId": "A",
+          "editorType": "sql",
+          "format": 0,
+          "rawSql": "SELECT event_time AS time, sum(ProfileEvent_AsyncInsertQuery) AS async_inserts FROM system.metric_log WHERE event_time >= $__fromTime AND event_time <= $__toTime GROUP BY time ORDER BY time"
+        }
+      ]
+    },
+    {
+      "type": "table",
+      "title": "Parts & compression per table (lab db)",
+      "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse" },
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 24 },
+      "targets": [
+        {
+          "refId": "A",
+          "editorType": "sql",
+          "format": 1,
+          "rawSql": "SELECT table, count() AS active_parts, sum(rows) AS rows, formatReadableSize(sum(data_compressed_bytes)) AS compressed, formatReadableSize(sum(data_uncompressed_bytes)) AS uncompressed, round(sum(data_uncompressed_bytes) / sum(data_compressed_bytes), 2) AS ratio FROM system.parts WHERE active AND database = 'lab' GROUP BY table ORDER BY sum(data_compressed_bytes) DESC"
+        }
+      ]
+    }
+  ]
+}

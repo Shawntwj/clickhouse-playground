@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lab 05 · Materialized views — the engine of cheap real-time</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#16181d;--panel:#1e2128;--panel2:#23262e;--line:#31353f;--ink:#e8e6df;--dim:#989ca6;--faint:#6b7078;--yellow:#f5c518;--read:#5fa8ff;--danger:#ff5d52;--ok:#5ad08a;--mono:'IBM Plex Mono',ui-monospace,monospace;--disp:'Space Grotesk',sans-serif;--body:'Inter',system-ui,sans-serif}
+  *{box-sizing:border-box;margin:0;padding:0}body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.65}main{max-width:980px;margin:0 auto;padding:0 20px 120px}a{color:var(--yellow)}::selection{background:var(--yellow);color:#16181d}
+  header{padding:64px 0 40px;border-bottom:1px solid var(--line)}.crumb{font-family:var(--mono);font-size:13px;color:var(--faint)}.crumb b{color:var(--yellow);font-weight:500}.crumb a{color:var(--faint);text-decoration:none}.crumb a:hover{color:var(--yellow)}
+  h1{font-family:var(--disp);font-weight:700;font-size:clamp(30px,5vw,46px);line-height:1.08;margin:14px 0;letter-spacing:-.02em}h1 .y{color:var(--yellow)}.lede{max-width:680px;color:var(--dim);font-size:17px}.lede b{color:var(--ink);font-weight:600}
+  .meta{display:flex;flex-wrap:wrap;gap:18px;margin-top:22px;font-family:var(--mono);font-size:12.5px;color:var(--faint)}.meta b{color:var(--ink);font-weight:500}
+  section{padding:48px 0 8px;border-bottom:1px solid var(--line)}section:last-of-type{border-bottom:none}
+  .eyebrow{font-family:var(--mono);font-size:12.5px;color:var(--faint);margin-bottom:10px;letter-spacing:.04em;text-transform:uppercase}.eyebrow b{color:var(--yellow);font-weight:500}
+  h2{font-family:var(--disp);font-weight:700;font-size:clamp(22px,3vw,28px);letter-spacing:-.01em;margin-bottom:14px}h3{font-family:var(--disp);font-weight:500;font-size:18px;margin:22px 0 8px}
+  p.prose{max-width:680px;color:var(--dim);margin-bottom:14px}p.prose b{color:var(--ink);font-weight:600}p.prose code,.inline{font-family:var(--mono);font-size:.88em;background:var(--panel2);padding:2px 6px;border-radius:4px;color:var(--ink)}
+  pre.sql,pre.shell,pre.diagram{font-family:var(--mono);font-size:13px;line-height:1.55;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:16px 18px;overflow-x:auto;margin:12px 0 14px;color:var(--ink);white-space:pre}
+  pre.shell{border-left:3px solid var(--read)}pre.sql{border-left:3px solid var(--yellow)}pre.diagram{border-left:3px solid var(--faint);color:var(--dim)}
+  pre .kw{color:var(--read)}pre .lit{color:var(--yellow)}pre .com{color:var(--faint);font-style:italic}pre .ok{color:var(--ok)}pre .bad{color:var(--danger)}
+  .step{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:20px 22px;margin:18px 0}.step-h{display:flex;flex-wrap:wrap;align-items:baseline;gap:10px;margin-bottom:6px}.step-n{font-family:var(--mono);font-size:11px;color:var(--yellow);background:var(--panel2);padding:3px 8px;border-radius:4px;font-weight:600}.step-t{font-family:var(--disp);font-size:17px;font-weight:600}
+  .expect{border-left:3px solid var(--ok);padding:6px 0 6px 14px;color:var(--dim);font-size:14.5px;margin:10px 0 0;max-width:660px}.expect b{color:var(--ink)}.expect .num{color:var(--yellow);font-family:var(--mono);font-weight:600}
+  .gotcha{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--danger);border-radius:8px;padding:14px 18px;margin:10px 0;color:var(--dim);max-width:720px}.gotcha b{color:var(--ink);font-weight:600}.gotcha .tag{font-family:var(--mono);font-size:11px;color:var(--danger);text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:4px}
+  .takeaway{border-left:3px solid var(--yellow);padding:6px 0 6px 16px;color:var(--ink);max-width:680px;margin:12px 0 0;font-size:15.5px}.takeaway b{color:var(--yellow)}
+  table{width:100%;border-collapse:collapse;font-size:14px;margin:12px 0 18px}th{font-family:var(--mono);font-size:11.5px;color:var(--faint);text-align:left;font-weight:500;padding:10px 12px;border-bottom:1px solid var(--line);text-transform:uppercase;letter-spacing:.04em}td{padding:10px 12px;border-bottom:1px solid var(--line);color:var(--dim);vertical-align:top}td code{font-family:var(--mono);font-size:.86em;color:var(--ink);background:var(--panel2);padding:2px 6px;border-radius:3px}tr td:first-child{color:var(--ink);font-weight:500}
+  .next{display:flex;flex-wrap:wrap;gap:14px;margin-top:18px}.next a{display:block;flex:1 1 280px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px 16px;text-decoration:none;color:var(--dim);transition:border-color .15s}.next a:hover{border-color:var(--yellow)}.next .nx-eyebrow{font-family:var(--mono);font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px}.next .nx-t{color:var(--ink);font-weight:600;font-size:15px}
+  footer{margin-top:60px;padding-top:24px;border-top:1px solid var(--line);font-family:var(--mono);font-size:13px;color:var(--faint)}
+</style>
+</head>
+<body><main>
+
+<header>
+  <div class="crumb"><a href="../../../README.md">clickhouse-playground</a> / <a href="../../README.md">lab</a> / <a href="index.html">exercises</a> / <b>05 · materialized_views</b></div>
+  <h1>The MV is an <span class="y">INSERT trigger</span>, not a cached query.</h1>
+  <p class="lede">Pay the aggregation cost <b>once at write time</b>, then dashboards read thousands of rolled-up rows instead of millions of raw ones. Async inserts → MV → tiny rollup reads is the entire near-real-time architecture; no streaming framework required.</p>
+  <div class="meta">
+    <span>File · <b>lab/sql/05_materialized_views.sql</b></span>
+    <span>Reading · <b>~12 min</b></span>
+    <span>Level · <b>Fundamentals</b></span>
+    <span>Prereq · <b>exercise 03 (lab.firehose) + make seed</b></span>
+  </div>
+</header>
+
+<section>
+  <div class="eyebrow"><b>0</b> · The point</div>
+  <h2>Cached queries vs INSERT triggers</h2>
+  <p class="prose">
+    In Postgres, a "materialized view" caches a query result that you refresh manually. In ClickHouse, a materialized view is something different: <b>an INSERT trigger</b> that transforms each inserted block and routes it into a <b>target table</b>. The target table is what you query.
+  </p>
+  <p class="takeaway"><b>Net effect:</b> every row written to the raw table also lands, pre-aggregated, in the rollup table. Latency from "row written" to "rollup updated" is sub-second.</p>
+</section>
+
+<section>
+  <div class="eyebrow"><b>1</b> · Mental model</div>
+  <h2>The architecture</h2>
+  <pre class="diagram">                       (async inserts buffer here)
+                                   │
+                                   ▼
+  INSERT block ──►  lab.firehose      <span class="com">raw events, TTL 7 days</span>
+                       │
+                       └──MV (the trigger)──►  lab.events_1m   <span class="com">AggregatingMergeTree</span>
+                                                  ▲              <span class="com">kept 13 months</span>
+                                                  │
+                                              Grafana reads HERE, never raw
+
+  The MV runs DURING the insert, against the BLOCK being written.
+  It does NOT see existing rows — only future ones.
+  → Backfill historical aggregates manually after creating the MV.</pre>
+</section>
+
+<section>
+  <div class="eyebrow"><b>2</b> · Run it</div>
+  <h2>The exercise</h2>
+
+  <div class="step">
+    <div class="step-h"><span class="step-n">Step 1</span><span class="step-t">Create the target (the rollup table).</span></div>
+    <pre class="sql"><span class="kw">CREATE TABLE</span> lab.events_1m
+(
+    minute      <span class="kw">DateTime</span>,
+    site_id     <span class="kw">UInt16</span>,
+    events      <span class="kw">UInt64</span>,
+    duration_q  <span class="kw">AggregateFunction</span>(quantile(<span class="lit">0.95</span>), <span class="kw">UInt16</span>)
+)
+<span class="kw">ENGINE</span> = AggregatingMergeTree
+<span class="kw">ORDER BY</span> (site_id, minute);</pre>
+    <p class="prose">
+      <b>AggregatingMergeTree</b> merges rows with the same ORDER BY key by combining their aggregate-state columns. <code>AggregateFunction(quantile(0.95), UInt16)</code> is the storage type for a t-digest sketch you'll merge later.
+    </p>
+  </div>
+
+  <div class="step">
+    <div class="step-h"><span class="step-n">Step 2</span><span class="step-t">Create the MV (the trigger).</span></div>
+    <pre class="sql"><span class="kw">CREATE MATERIALIZED VIEW</span> lab.events_1m_mv <span class="kw">TO</span> lab.events_1m <span class="kw">AS</span>
+<span class="kw">SELECT</span>
+    toStartOfMinute(event_time)               <span class="kw">AS</span> minute,
+    site_id,
+    count()                                   <span class="kw">AS</span> events,
+    quantileState(<span class="lit">0.95</span>)(duration_ms)          <span class="kw">AS</span> duration_q
+<span class="kw">FROM</span> lab.firehose
+<span class="kw">GROUP BY</span> minute, site_id;</pre>
+    <p class="prose">
+      Note <code>quantileState</code> — writes the <i>sketch</i>, not the final number. Reads will use <code>quantileMerge</code> to combine sketches.
+    </p>
+  </div>
+
+  <div class="step">
+    <div class="step-h"><span class="step-n">Step 3</span><span class="step-t">Backfill historical aggregates.</span></div>
+    <pre class="sql"><span class="kw">INSERT INTO</span> lab.events_1m
+<span class="kw">SELECT</span> toStartOfMinute(event_time), site_id, count(), quantileState(<span class="lit">0.95</span>)(duration_ms)
+<span class="kw">FROM</span> lab.events
+<span class="kw">GROUP BY</span> <span class="lit">1</span>, <span class="lit">2</span>;</pre>
+    <p class="expect">MVs only see <b>new</b> inserts. To get history into the rollup, you run an explicit aggregation INSERT. Do this <i>after</i> creating the MV so new inserts also flow in.</p>
+  </div>
+
+  <div class="step">
+    <div class="step-h"><span class="step-n">Step 4</span><span class="step-t">Compare reads: raw vs rollup.</span></div>
+    <pre class="sql"><span class="com">-- Raw (scans millions of rows)</span>
+<span class="kw">SELECT</span> toStartOfMinute(event_time) <span class="kw">AS</span> m, count(), quantile(<span class="lit">0.95</span>)(duration_ms)
+<span class="kw">FROM</span> lab.events
+<span class="kw">WHERE</span> event_time > now() - <span class="kw">INTERVAL</span> <span class="lit">6</span> <span class="kw">HOUR</span>
+<span class="kw">GROUP BY</span> m <span class="kw">ORDER BY</span> m;
+
+<span class="com">-- Rollup (scans a few thousand pre-aggregated rows)</span>
+<span class="kw">SELECT</span> minute, sum(events), quantileMerge(<span class="lit">0.95</span>)(duration_q)
+<span class="kw">FROM</span> lab.events_1m
+<span class="kw">WHERE</span> minute > now() - <span class="kw">INTERVAL</span> <span class="lit">6</span> <span class="kw">HOUR</span>
+<span class="kw">GROUP BY</span> minute <span class="kw">ORDER BY</span> minute;</pre>
+    <p class="expect">Order-of-magnitude latency difference, identical answer. The rollup costs essentially nothing per query.</p>
+  </div>
+
+  <div class="step">
+    <div class="step-h"><span class="step-n">Step 5</span><span class="step-t">The feedback loop — see it live.</span></div>
+    <pre class="shell"><span class="com"># terminal 1</span>
+make storm-async
+
+<span class="com"># terminal 2 (Grafana)</span>
+<span class="com"># Add a panel on lab.events_1m with 5s refresh:</span>
+<span class="com">#   SELECT minute AS time, sum(events) AS events</span>
+<span class="com">#   FROM lab.events_1m</span>
+<span class="com">#   WHERE minute >= $__fromTime GROUP BY minute ORDER BY minute</span></pre>
+    <p class="expect">
+      Inserts appear in the rollup within 1–2 seconds. That <b>is</b> near-real-time analytics: async insert buffer → MV → tiny read.
+    </p>
+  </div>
+</section>
+
+<section>
+  <div class="eyebrow"><b>3</b> · State combinators</div>
+  <h2>The -State / -Merge dance</h2>
+  <p class="prose">
+    Aggregate functions in CH have three flavors. Get this once and the rest is mechanical:
+  </p>
+  <table>
+    <thead><tr><th>Variant</th><th>Returns</th><th>Use where</th></tr></thead>
+    <tbody>
+      <tr><td><code>quantile(0.95)(x)</code></td><td>The number</td><td>Direct query against raw data.</td></tr>
+      <tr><td><code>quantileState(0.95)(x)</code></td><td>The partial sketch (bytes)</td><td>Inside the MV — what's stored in the target.</td></tr>
+      <tr><td><code>quantileMerge(0.95)(state)</code></td><td>The number, from sketches</td><td>Reading from the rollup table.</td></tr>
+    </tbody>
+  </table>
+  <p class="prose">Same pattern for <code>uniqState/Merge</code>, <code>avgState/Merge</code>, etc. For pure counts/sums, <code>SummingMergeTree</code> is simpler — no state combinators needed.</p>
+</section>
+
+<section>
+  <div class="eyebrow"><b>4</b> · Gotchas</div>
+  <h2>What experts know</h2>
+  <div class="gotcha"><span class="tag">Trap</span>
+    <b>MV runs INSIDE the insert.</b> A heavy MV slows ingestion for everyone. Keep transforms lean. If the math is expensive, chain MVs (raw → 1min → 1h → 1d) rather than one monster MV.
+  </div>
+  <div class="gotcha"><span class="tag">Trap</span>
+    <b>MVs do NOT see existing data.</b> Backfill is always a separate <code>INSERT … SELECT … FROM raw GROUP BY …</code>. Forget this and your dashboard mysteriously has only the last hour of data.
+  </div>
+  <div class="gotcha"><span class="tag">Pattern</span>
+    <b>Multiple MVs on one source = fan-out.</b> One <code>lab.firehose</code> can feed a 1-minute rollup, a country rollup, AND a kafka-style downstream — three CREATE statements. This is what people pay streaming frameworks for.
+  </div>
+  <div class="gotcha"><span class="tag">Trap</span>
+    <b>If the MV's SELECT fails on a block, that block's ingestion fails too.</b> Be defensive with <code>parseDateTimeBestEffort</code>, <code>toFloatOrZero</code>, etc. on data of uncertain shape.
+  </div>
+</section>
+
+<section>
+  <div class="eyebrow"><b>5</b> · Prove it</div>
+  <table>
+    <thead><tr><th>Question</th><th>Query</th></tr></thead>
+    <tbody>
+      <tr><td>Is the MV firing?</td><td><code>SELECT * FROM system.query_log WHERE type = 'QueryFinish' AND query_kind = 'InsertQuery' ORDER BY event_time DESC LIMIT 5</code></td></tr>
+      <tr><td>Rollup vs raw size</td><td><code>SELECT table, sum(rows), formatReadableSize(sum(bytes_on_disk)) FROM system.parts WHERE database='lab' AND active GROUP BY table</code></td></tr>
+      <tr><td>MV's storage growth</td><td><code>SELECT toStartOfHour(modification_time), sum(rows) FROM system.parts WHERE table='events_1m' GROUP BY 1 ORDER BY 1</code></td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section>
+  <div class="eyebrow"><b>6</b> · Next</div>
+  <div class="next">
+    <a href="06_query_tuning.html"><div class="nx-eyebrow">Lab · 06</div><div class="nx-t">PREWHERE, skip indexes, projections →</div></a>
+    <a href="07_ttl_and_cost.html"><div class="nx-eyebrow">Lab · 07</div><div class="nx-t">TTL + rollups: real-time on a fixed-size box →</div></a>
+  </div>
+</section>
+
+<footer>lab/sql/05_materialized_views.sql · part of clickhouse-playground</footer>
+</main></body></html>

@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lab 10 · Engine anatomy — see the storage engine with your own eyes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#16181d;--panel:#1e2128;--panel2:#23262e;--line:#31353f;--ink:#e8e6df;--dim:#989ca6;--faint:#6b7078;--yellow:#f5c518;--read:#5fa8ff;--danger:#ff5d52;--ok:#5ad08a;--mono:'IBM Plex Mono',ui-monospace,monospace;--disp:'Space Grotesk',sans-serif;--body:'Inter',system-ui,sans-serif}
+  *{box-sizing:border-box;margin:0;padding:0}body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.65}main{max-width:980px;margin:0 auto;padding:0 20px 120px}a{color:var(--yellow)}::selection{background:var(--yellow);color:#16181d}
+  header{padding:64px 0 40px;border-bottom:1px solid var(--line)}.crumb{font-family:var(--mono);font-size:13px;color:var(--faint)}.crumb b{color:var(--yellow);font-weight:500}.crumb a{color:var(--faint);text-decoration:none}.crumb a:hover{color:var(--yellow)}
+  h1{font-family:var(--disp);font-weight:700;font-size:clamp(30px,5vw,46px);line-height:1.08;margin:14px 0;letter-spacing:-.02em}h1 .y{color:var(--yellow)}.lede{max-width:680px;color:var(--dim);font-size:17px}.lede b{color:var(--ink);font-weight:600}
+  .meta{display:flex;flex-wrap:wrap;gap:18px;margin-top:22px;font-family:var(--mono);font-size:12.5px;color:var(--faint)}.meta b{color:var(--ink);font-weight:500}
+  section{padding:48px 0 8px;border-bottom:1px solid var(--line)}section:last-of-type{border-bottom:none}
+  .eyebrow{font-family:var(--mono);font-size:12.5px;color:var(--faint);margin-bottom:10px;letter-spacing:.04em;text-transform:uppercase}.eyebrow b{color:var(--yellow);font-weight:500}
+  h2{font-family:var(--disp);font-weight:700;font-size:clamp(22px,3vw,28px);letter-spacing:-.01em;margin-bottom:14px}h3{font-family:var(--disp);font-weight:500;font-size:18px;margin:22px 0 8px}
+  p.prose{max-width:680px;color:var(--dim);margin-bottom:14px}p.prose b{color:var(--ink);font-weight:600}p.prose code,.inline{font-family:var(--mono);font-size:.88em;background:var(--panel2);padding:2px 6px;border-radius:4px;color:var(--ink)}
+  pre.sql,pre.shell,pre.diagram{font-family:var(--mono);font-size:13px;line-height:1.55;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:16px 18px;overflow-x:auto;margin:12px 0 14px;color:var(--ink);white-space:pre}
+  pre.shell{border-left:3px solid var(--read)}pre.sql{border-left:3px solid var(--yellow)}pre.diagram{border-left:3px solid var(--faint);color:var(--dim)}
+  pre .kw{color:var(--read)}pre .lit{color:var(--yellow)}pre .com{color:var(--faint);font-style:italic}pre .ok{color:var(--ok)}pre .bad{color:var(--danger)}
+  .step{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:20px 22px;margin:18px 0}.step-h{display:flex;flex-wrap:wrap;align-items:baseline;gap:10px;margin-bottom:6px}.step-n{font-family:var(--mono);font-size:11px;color:var(--yellow);background:var(--panel2);padding:3px 8px;border-radius:4px;font-weight:600}.step-t{font-family:var(--disp);font-size:17px;font-weight:600}
+  .expect{border-left:3px solid var(--ok);padding:6px 0 6px 14px;color:var(--dim);font-size:14.5px;margin:10px 0 0;max-width:660px}.expect b{color:var(--ink)}.expect .num{color:var(--yellow);font-family:var(--mono);font-weight:600}
+  .gotcha{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--danger);border-radius:8px;padding:14px 18px;margin:10px 0;color:var(--dim);max-width:720px}.gotcha b{color:var(--ink);font-weight:600}.gotcha .tag{font-family:var(--mono);font-size:11px;color:var(--danger);text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:4px}
+  .takeaway{border-left:3px solid var(--yellow);padding:6px 0 6px 16px;color:var(--ink);max-width:680px;margin:12px 0 0;font-size:15.5px}.takeaway b{color:var(--yellow)}
+  table{width:100%;border-collapse:collapse;font-size:14px;margin:12px 0 18px}th{font-family:var(--mono);font-size:11.5px;color:var(--faint);text-align:left;font-weight:500;padding:10px 12px;border-bottom:1px solid var(--line);text-transform:uppercase;letter-spacing:.04em}td{padding:10px 12px;border-bottom:1px solid var(--line);color:var(--dim);vertical-align:top}td code{font-family:var(--mono);font-size:.86em;color:var(--ink);background:var(--panel2);padding:2px 6px;border-radius:3px}tr td:first-child{color:var(--ink);font-weight:500}
+  .next{display:flex;flex-wrap:wrap;gap:14px;margin-top:18px}.next a{display:block;flex:1 1 280px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px 16px;text-decoration:none;color:var(--dim);transition:border-color .15s}.next a:hover{border-color:var(--yellow)}.next .nx-eyebrow{font-family:var(--mono);font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px}.next .nx-t{color:var(--ink);font-weight:600;font-size:15px}
+  footer{margin-top:60px;padding-top:24px;border-top:1px solid var(--line);font-family:var(--mono);font-size:13px;color:var(--faint)}
+</style>
+</head>
+<body><main>
+
+<header>
+  <div class="crumb"><a href="../../../README.md">clickhouse-playground</a> / <a href="../../README.md">lab</a> / <a href="index.html">exercises</a> / <b>10 · engine_anatomy</b></div>
+  <h1>The storage engine has <span class="y">no secrets</span>.</h1>
+  <p class="lede">Parts are directories. Columns are files. The "index" is a few hundred KB of marks. ProfileEvents records 400 counters per query. There's a built-in sampling profiler. Once you've seen all of it with your own eyes, "ClickHouse is fast" stops being magic and becomes <i>predictable</i>.</p>
+  <div class="meta">
+    <span>File · <b>lab/sql/10_engine_anatomy.sql</b></span>
+    <span>Reading · <b>~16 min</b></span>
+    <span>Level · <b>Expert</b></span>
+    <span>Prereq · <b>make seed</b></span>
+  </div>
+</header>
+
+<section>
+  <div class="eyebrow"><b>0</b> · The point</div>
+  <h2>Five places experts look that beginners don't</h2>
+  <ul style="margin-left:22px;color:var(--dim);max-width:680px">
+    <li style="margin:6px 0">Parts on disk — <code>ls</code> them, see column files directly.</li>
+    <li style="margin:6px 0"><code>system.parts</code> — granules, marks, part_type, level.</li>
+    <li style="margin:6px 0">Mark cache cold-vs-warm via <code>SYSTEM DROP MARK CACHE</code>.</li>
+    <li style="margin:6px 0"><code>ProfileEvents</code> — ~400 counters per query, the single most underused expert tool.</li>
+    <li style="margin:6px 0">Built-in sampling profiler — read your own C++ stacks.</li>
+  </ul>
+</section>
+
+<section>
+  <div class="eyebrow"><b>A</b> · Parts on disk</div>
+  <h2>It's just files</h2>
+  <pre class="shell"><span class="com"># From your shell, not SQL:</span>
+docker exec clickhouse ls /var/lib/clickhouse/data/lab/events/
+docker exec clickhouse ls /var/lib/clickhouse/data/lab/events/&lt;some_part_dir&gt;/</pre>
+  <pre class="diagram">/var/lib/clickhouse/data/lab/events/all_1_1_0/
+ ├── country.bin       compressed column data
+ ├── country.cmrk2     marks: byte offsets into .bin, one per granule (8192 rows)
+ ├── event_time.bin
+ ├── event_time.cmrk2
+ ├── primary.cidx      sparse primary index
+ ├── partition.dat
+ ├── count.txt         row count
+ └── checksums.txt
+
+Small parts use COMPACT (all columns in one data.bin) until ~10MB,
+then switch to WIDE (per-column files) on merge.
+
+Part name decoding:
+   all_<span class="kw">1</span>_<span class="kw">1</span>_<span class="kw">0</span>
+   │   │ │ └── merge level (0 = freshly inserted)
+   │   │ └──── max block number
+   │   └────── min block number
+   └────────── partition id</pre>
+  <p class="prose">Verify which storage type via:</p>
+  <pre class="sql"><span class="kw">SELECT</span> name, part_type, rows, formatReadableSize(bytes_on_disk) <span class="kw">AS</span> size, level
+<span class="kw">FROM</span> system.parts
+<span class="kw">WHERE</span> database = <span class="lit">'lab'</span> <span class="kw">AND</span> table = <span class="lit">'events'</span> <span class="kw">AND</span> active
+<span class="kw">ORDER BY</span> rows <span class="kw">DESC</span>;</pre>
+</section>
+
+<section>
+  <div class="eyebrow"><b>B</b> · Granules and marks</div>
+  <h2>The sparse index, quantified</h2>
+  <pre class="sql"><span class="kw">SELECT</span>
+    table,
+    sum(marks)                                   <span class="kw">AS</span> total_granules,
+    sum(rows)                                    <span class="kw">AS</span> rows,
+    round(sum(rows) / sum(marks))                <span class="kw">AS</span> rows_per_granule,
+    formatReadableSize(sum(marks) * <span class="lit">24</span>)          <span class="kw">AS</span> approx_pk_ram
+<span class="kw">FROM</span> system.parts
+<span class="kw">WHERE</span> database = <span class="lit">'lab'</span> <span class="kw">AND</span> active
+<span class="kw">GROUP BY</span> table;</pre>
+  <p class="expect">
+    The <b>entire primary index for 20M rows is a few hundred KB</b> in RAM. That's why ClickHouse index lookups are essentially free — and why the index <i>can't</i> find individual rows, only skip 8192-row blocks.
+  </p>
+</section>
+
+<section>
+  <div class="eyebrow"><b>C</b> · Mark cache</div>
+  <h2>Watch cold-vs-warm</h2>
+  <pre class="sql"><span class="kw">SYSTEM DROP MARK CACHE</span>;
+<span class="kw">SELECT</span> count() <span class="kw">FROM</span> lab.events <span class="kw">WHERE</span> site_id = <span class="lit">42</span> <span class="kw">FORMAT Null</span>;  <span class="com">-- cold</span>
+<span class="kw">SELECT</span> count() <span class="kw">FROM</span> lab.events <span class="kw">WHERE</span> site_id = <span class="lit">42</span> <span class="kw">FORMAT Null</span>;  <span class="com">-- warm</span>
+
+<span class="kw">SELECT</span>
+    event_time,
+    query_duration_ms,
+    ProfileEvents[<span class="lit">'MarkCacheHits'</span>]    <span class="kw">AS</span> mark_hits,
+    ProfileEvents[<span class="lit">'MarkCacheMisses'</span>]  <span class="kw">AS</span> mark_misses,
+    ProfileEvents[<span class="lit">'SelectedGranules'</span>] <span class="kw">AS</span> granules_read,
+    ProfileEvents[<span class="lit">'SelectedParts'</span>]    <span class="kw">AS</span> parts_read
+<span class="kw">FROM</span> system.query_log
+<span class="kw">WHERE</span> type = <span class="lit">'QueryFinish'</span> <span class="kw">AND</span> query <span class="kw">LIKE</span> <span class="lit">'%site_id = 42%'</span> <span class="kw">AND</span> query_kind = <span class="lit">'Select'</span>
+<span class="kw">ORDER BY</span> event_time <span class="kw">DESC</span> <span class="kw">LIMIT</span> <span class="lit">4</span>;</pre>
+  <p class="prose">
+    <b>ProfileEvents is the single most underused expert tool.</b> ~400 counters recorded per query. Diffing them between two query variants tells you exactly where time went. Browse them all: <code>SELECT * FROM system.events</code>.
+  </p>
+</section>
+
+<section>
+  <div class="eyebrow"><b>D</b> · The sampling profiler</div>
+  <h2>Poor man's flamegraph, in SQL</h2>
+  <pre class="sql"><span class="kw">SET</span> allow_introspection_functions = <span class="lit">1</span>;
+
+<span class="kw">SELECT</span> sum(duration_ms) <span class="kw">FROM</span> (
+    <span class="kw">SELECT</span> user_id, count(), avg(duration_ms) <span class="kw">AS</span> duration_ms
+    <span class="kw">FROM</span> lab.events <span class="kw">GROUP BY</span> user_id
+) <span class="kw">SETTINGS</span> query_profiler_real_time_period_ns = <span class="lit">1000000</span>;  <span class="com">-- sample every 1ms</span>
+
+<span class="kw">SELECT</span>
+    count() <span class="kw">AS</span> samples,
+    arrayStringConcat(arrayMap(x -> demangle(addressToSymbol(x)), trace), <span class="lit">'\n'</span>) <span class="kw">AS</span> stack
+<span class="kw">FROM</span> system.trace_log
+<span class="kw">WHERE</span> event_time > now() - <span class="kw">INTERVAL</span> <span class="lit">2</span> <span class="kw">MINUTE</span> <span class="kw">AND</span> trace_type = <span class="lit">'Real'</span>
+<span class="kw">GROUP BY</span> trace
+<span class="kw">ORDER BY</span> samples <span class="kw">DESC</span>
+<span class="kw">LIMIT</span> <span class="lit">3</span> <span class="kw">FORMAT Vertical</span>;</pre>
+  <p class="expect">
+    You are reading the <b>C++ call stacks of your own query</b>. Where do samples land — aggregation? decompression? merge-sort? That tells you which sub-system to investigate.
+  </p>
+</section>
+
+<section>
+  <div class="eyebrow"><b>E</b> · See the query plan</div>
+  <h2>Three EXPLAINs, three angles</h2>
+  <table>
+    <thead><tr><th>EXPLAIN type</th><th>What it shows</th></tr></thead>
+    <tbody>
+      <tr><td><code>EXPLAIN PLAN actions = 1</code></td><td>Logical plan — operators, expressions, projections.</td></tr>
+      <tr><td><code>EXPLAIN PIPELINE</code></td><td>Actual processor graph with thread fan-out (x4, x8...). Verifies <code>max_threads</code> and in-order optimizations.</td></tr>
+      <tr><td><code>EXPLAIN ESTIMATE</code></td><td>Predicted parts/rows/marks to read, without running anything.</td></tr>
+      <tr><td><code>EXPLAIN indexes = 1</code></td><td>Per-index granule pruning. Use this to verify a skip index is working.</td></tr>
+      <tr><td><code>EXPLAIN SYNTAX</code></td><td>The post-optimizer rewritten query (with PREWHERE moved in, etc.).</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section>
+  <div class="eyebrow"><b>F</b> · Gotchas</div>
+  <h2>What experts know</h2>
+  <div class="gotcha"><span class="tag">Tool</span>
+    <b><code>system.events</code></b> lives next to <code>system.query_log</code>. It records counters with names and descriptions for every ProfileEvent ClickHouse tracks — your decoder ring when ProfileEvents['SomeCounterName'] gives a number you don't recognize.
+  </div>
+  <div class="gotcha"><span class="tag">Pattern</span>
+    <b>Diff ProfileEvents between two runs to find the difference.</b> Same query, two different SETTINGS, two different ProfileEvents maps — the keys that change are where the work went.
+  </div>
+  <div class="gotcha"><span class="tag">Trap</span>
+    <b>The sampling profiler is GLOBAL.</b> Set <code>query_profiler_real_time_period_ns</code> on the single query, not as a session/profile default — otherwise <code>system.trace_log</code> fills up fast.
+  </div>
+</section>
+
+<section>
+  <div class="eyebrow"><b>G</b> · Next</div>
+  <div class="next">
+    <a href="11_merge_machine.html"><div class="nx-eyebrow">Lab · 11</div><div class="nx-t">The merge machine — break it on purpose →</div></a>
+    <a href="13_read_warfare.html"><div class="nx-eyebrow">Lab · 13</div><div class="nx-t">Read warfare — caches, in-order, FINAL-dodging →</div></a>
+  </div>
+</section>
+
+<footer>lab/sql/10_engine_anatomy.sql · part of clickhouse-playground</footer>
+</main></body></html>

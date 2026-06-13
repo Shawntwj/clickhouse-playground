@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lab 03 · Inserts and async_insert — the parts war</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#16181d;--panel:#1e2128;--panel2:#23262e;--line:#31353f;--ink:#e8e6df;--dim:#989ca6;--faint:#6b7078;--yellow:#f5c518;--read:#5fa8ff;--danger:#ff5d52;--ok:#5ad08a;--mono:'IBM Plex Mono',ui-monospace,monospace;--disp:'Space Grotesk',sans-serif;--body:'Inter',system-ui,sans-serif}
+  *{box-sizing:border-box;margin:0;padding:0}body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.65}main{max-width:980px;margin:0 auto;padding:0 20px 120px}a{color:var(--yellow)}::selection{background:var(--yellow);color:#16181d}
+  header{padding:64px 0 40px;border-bottom:1px solid var(--line)}.crumb{font-family:var(--mono);font-size:13px;color:var(--faint)}.crumb b{color:var(--yellow);font-weight:500}.crumb a{color:var(--faint);text-decoration:none}.crumb a:hover{color:var(--yellow)}
+  h1{font-family:var(--disp);font-weight:700;font-size:clamp(30px,5vw,46px);line-height:1.08;margin:14px 0;letter-spacing:-.02em}h1 .y{color:var(--yellow)}.lede{max-width:680px;color:var(--dim);font-size:17px}.lede b{color:var(--ink);font-weight:600}
+  .meta{display:flex;flex-wrap:wrap;gap:18px;margin-top:22px;font-family:var(--mono);font-size:12.5px;color:var(--faint)}.meta b{color:var(--ink);font-weight:500}
+  section{padding:48px 0 8px;border-bottom:1px solid var(--line)}section:last-of-type{border-bottom:none}
+  .eyebrow{font-family:var(--mono);font-size:12.5px;color:var(--faint);margin-bottom:10px;letter-spacing:.04em;text-transform:uppercase}.eyebrow b{color:var(--yellow);font-weight:500}
+  h2{font-family:var(--disp);font-weight:700;font-size:clamp(22px,3vw,28px);letter-spacing:-.01em;margin-bottom:14px}h3{font-family:var(--disp);font-weight:500;font-size:18px;margin:22px 0 8px}
+  p.prose{max-width:680px;color:var(--dim);margin-bottom:14px}p.prose b{color:var(--ink);font-weight:600}p.prose code,.inline{font-family:var(--mono);font-size:.88em;background:var(--panel2);padding:2px 6px;border-radius:4px;color:var(--ink)}
+  pre.sql,pre.shell,pre.diagram{font-family:var(--mono);font-size:13px;line-height:1.55;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:16px 18px;overflow-x:auto;margin:12px 0 14px;color:var(--ink);white-space:pre}
+  pre.shell{border-left:3px solid var(--read)}pre.sql{border-left:3px solid var(--yellow)}pre.diagram{border-left:3px solid var(--faint);color:var(--dim)}
+  pre .kw{color:var(--read)}pre .lit{color:var(--yellow)}pre .com{color:var(--faint);font-style:italic}pre .ok{color:var(--ok)}pre .bad{color:var(--danger)}
+  .step{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:20px 22px;margin:18px 0}.step-h{display:flex;flex-wrap:wrap;align-items:baseline;gap:10px;margin-bottom:6px}.step-n{font-family:var(--mono);font-size:11px;color:var(--yellow);background:var(--panel2);padding:3px 8px;border-radius:4px;font-weight:600}.step-t{font-family:var(--disp);font-size:17px;font-weight:600}
+  .expect{border-left:3px solid var(--ok);padding:6px 0 6px 14px;color:var(--dim);font-size:14.5px;margin:10px 0 0;max-width:660px}.expect b{color:var(--ink)}.expect .num{color:var(--yellow);font-family:var(--mono);font-weight:600}
+  .gotcha{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--danger);border-radius:8px;padding:14px 18px;margin:10px 0;color:var(--dim);max-width:720px}.gotcha b{color:var(--ink);font-weight:600}.gotcha .tag{font-family:var(--mono);font-size:11px;color:var(--danger);text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:4px}
+  .takeaway{border-left:3px solid var(--yellow);padding:6px 0 6px 16px;color:var(--ink);max-width:680px;margin:12px 0 0;font-size:15.5px}.takeaway b{color:var(--yellow)}
+  table{width:100%;border-collapse:collapse;font-size:14px;margin:12px 0 18px}th{font-family:var(--mono);font-size:11.5px;color:var(--faint);text-align:left;font-weight:500;padding:10px 12px;border-bottom:1px solid var(--line);text-transform:uppercase;letter-spacing:.04em}td{padding:10px 12px;border-bottom:1px solid var(--line);color:var(--dim);vertical-align:top}td code{font-family:var(--mono);font-size:.86em;color:var(--ink);background:var(--panel2);padding:2px 6px;border-radius:3px}tr td:first-child{color:var(--ink);font-weight:500}
+  .next{display:flex;flex-wrap:wrap;gap:14px;margin-top:18px}.next a{display:block;flex:1 1 280px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px 16px;text-decoration:none;color:var(--dim);transition:border-color .15s}.next a:hover{border-color:var(--yellow)}.next .nx-eyebrow{font-family:var(--mono);font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px}.next .nx-t{color:var(--ink);font-weight:600;font-size:15px}
+  footer{margin-top:60px;padding-top:24px;border-top:1px solid var(--line);font-family:var(--mono);font-size:13px;color:var(--faint)}
+</style>
+</head>
+<body><main>
+
+<header>
+  <div class="crumb"><a href="../../../README.md">clickhouse-playground</a> / <a href="../../README.md">lab</a> / <a href="index.html">exercises</a> / <b>03 · async_inserts</b></div>
+  <h1>The <span class="y">parts war</span>, and how to win it.</h1>
+  <p class="lede">Every INSERT creates a new <b>part</b> (a directory on disk). Background merges combine them. Insert faster than merges can keep up and parts explode — eventually you hit <code>Too many parts</code> and ingestion dies. This exercise breaks the system on purpose, then shows the two ways to fix it.</p>
+  <div class="meta">
+    <span>File · <b>lab/sql/03_async_inserts.sql</b> + <b>lab/scripts/insert_storm.sh</b></span>
+    <span>Reading · <b>~12 min</b></span>
+    <span>Level · <b>Fundamentals</b></span>
+    <span>Prereq · <b>make up</b></span>
+  </div>
+</header>
+
+<section>
+  <div class="eyebrow"><b>0</b> · The point</div>
+  <h2>Why "too many parts" is the most famous ClickHouse error</h2>
+  <p class="prose">
+    A naive deployment streams individual rows from clients ("just one INSERT per request, what could go wrong"). Each becomes a tiny part. Merges, which are <b>O(rows)</b>, can't catch up. <code>parts_to_throw_insert</code> trips. Ingestion stops. 3 a.m. page.
+  </p>
+  <p class="takeaway"><b>The decision tree:</b> batch on the client if you can. If you can't, <code>async_insert=1</code> moves the buffering server-side. There is no third option that's not weird.</p>
+</section>
+
+<section>
+  <div class="eyebrow"><b>1</b> · Mental model</div>
+  <h2>Sync vs async inserts</h2>
+
+  <pre class="diagram"><span class="bad">SYNC (the default, the disaster)</span>
+
+  client 1 ─►─┐
+  client 2 ─►─┤  2000 INSERTs ──► 2000 parts ──► merge storm ──► "Too many parts"
+  client N ─►─┘
+
+<span class="ok">ASYNC (async_insert=1)</span>
+
+  client 1 ─►─┐                  in-memory buffer
+  client 2 ─►─┼─►─ server   ─►   [accumulates rows]   ─►  ONE part every ~1s
+  client N ─►─┘                      flush on:
+                                       • async_insert_busy_timeout_ms
+                                       • async_insert_max_data_size
+
+  ack semantics:
+    wait_for_async_insert = 1  →  client gets ack AFTER flush  (durable)
+    wait_for_async_insert = 0  →  ack immediately              (fast, crash loses buffer)</pre>
+</section>
+
+<section>
+  <div class="eyebrow"><b>2</b> · Run it</div>
+  <h2>Break it, then fix it</h2>
+
+  <div class="step">
+    <div class="step-h"><span class="step-n">Step 1</span><span class="step-t">Create the target table.</span></div>
+    <pre class="sql"><span class="kw">CREATE TABLE IF NOT EXISTS</span> lab.firehose
+(
+    event_time  <span class="kw">DateTime</span>,
+    user_id     <span class="kw">UInt32</span>,
+    site_id     <span class="kw">UInt16</span>,
+    country     <span class="kw">LowCardinality</span>(<span class="kw">String</span>),
+    url         <span class="kw">LowCardinality</span>(<span class="kw">String</span>),
+    duration_ms <span class="kw">UInt16</span>
+)
+<span class="kw">ENGINE</span> = MergeTree
+<span class="kw">ORDER BY</span> (site_id, event_time);</pre>
+  </div>
+
+  <div class="step">
+    <div class="step-h"><span class="step-n">Step 2</span><span class="step-t">Break it: 2000 sync inserts.</span></div>
+    <pre class="shell">make storm-sync</pre>
+    <p class="expect">
+      Open Grafana → <b>Feedback Loop</b>. Watch <b>Active parts</b> climb in a near-straight line. <b>Merges running</b> maxes out — the server is fighting itself. Crank N high enough and you'll see <code>Too many parts (N). Merges are processing significantly slower than inserts.</code> — the canonical error.
+    </p>
+  </div>
+
+  <div class="step">
+    <div class="step-h"><span class="step-n">Step 3</span><span class="step-t">Reset and fix it: same inserts, async.</span></div>
+    <pre class="shell">docker exec clickhouse clickhouse-client -u admin --password admin \
+  -q <span class="lit">"TRUNCATE TABLE lab.firehose"</span>
+make storm-async</pre>
+    <p class="expect">
+      Same 2000 inserts. <b>Active parts</b> now stays flat. <b>Async insert flushes / sec</b> ticks at ~1/sec. Roughly <span class="num">2000×</span> fewer parts, same data ingested.
+    </p>
+  </div>
+
+  <div class="step">
+    <div class="step-h"><span class="step-n">Step 4</span><span class="step-t">Watch the buffer live.</span></div>
+    <pre class="sql"><span class="kw">SELECT</span> * <span class="kw">FROM</span> system.asynchronous_inserts;</pre>
+    <p class="expect">
+      During <code>storm-async</code> you'll see rows in flight, their query hash, and which user. After flush the entry disappears. This table is the source of truth for "are async inserts buffering or stuck?"
+    </p>
+  </div>
+</section>
+
+<section>
+  <div class="eyebrow"><b>3</b> · The decision tree</div>
+  <h2>Which path is yours?</h2>
+  <table>
+    <thead><tr><th>Situation</th><th>Do this</th></tr></thead>
+    <tbody>
+      <tr><td>You control the client</td><td>Batch: 10k–500k rows per INSERT, ≤ ~1 insert/sec/table. Nothing beats it.</td></tr>
+      <tr><td>Many small producers you don't control</td><td><code>async_insert = 1</code>. Choose ack semantics next.</td></tr>
+      <tr><td>Need maximum throughput; can tolerate buffer loss on crash</td><td><code>async_insert=1, wait_for_async_insert=0</code> (fire-and-forget).</td></tr>
+      <tr><td>Need durability per write</td><td><code>async_insert=1, wait_for_async_insert=1</code> (default). Client acks after flush.</td></tr>
+      <tr><td>Insane volume, only aggregates matter</td><td>Skip storing raw entirely — <a href="12_ingestion_warfare.html">exercise 12</a> (Null engine + MV).</td></tr>
+    </tbody>
+  </table>
+  <p class="prose">Key tuning knobs (per-query SETTINGS or in a profile):</p>
+  <pre class="sql">async_insert = <span class="lit">1</span>                          <span class="com">-- turn it on</span>
+wait_for_async_insert = <span class="lit">1</span>                <span class="com">-- ack AFTER flush (durable, default)</span>
+async_insert_busy_timeout_ms = <span class="lit">1000</span>     <span class="com">-- flush every N ms</span>
+async_insert_max_data_size = <span class="lit">10485760</span>  <span class="com">-- ...or when buffer hits N bytes</span></pre>
+</section>
+
+<section>
+  <div class="eyebrow"><b>4</b> · Gotchas</div>
+  <h2>What experts know</h2>
+  <div class="gotcha"><span class="tag">Trap</span>
+    <b>async_insert is per-shape.</b> Two inserts with different column orders or different column sets buffer separately. Send identical INSERT shapes from every client.
+  </div>
+  <div class="gotcha"><span class="tag">Trap</span>
+    <b>Server crash with <code>wait_for_async_insert=0</code> loses the in-RAM buffer.</b> That's the trade. If your producer can re-emit, it's fine. If it can't, use the durable mode or batch on the client.
+  </div>
+  <div class="gotcha"><span class="tag">Pattern</span>
+    <b>async_insert is the budget Kafka.</b> At small-to-medium scale, "Kafka in front of ClickHouse just to buffer writes" is a fully managed cluster's worth of complexity to solve a problem one setting fixes. Reach for Kafka when you need <i>fan-out</i> or <i>replay</i>, not just buffering.
+  </div>
+</section>
+
+<section>
+  <div class="eyebrow"><b>5</b> · Prove it</div>
+  <h2>System tables to inspect alongside</h2>
+  <table>
+    <thead><tr><th>Question</th><th>Query</th></tr></thead>
+    <tbody>
+      <tr><td>Buffer state right now</td><td><code>SELECT * FROM system.asynchronous_inserts</code></td></tr>
+      <tr><td>Parts count over time</td><td><code>SELECT count() FROM system.parts WHERE database='lab' AND table='firehose' AND active</code></td></tr>
+      <tr><td>What merges did</td><td><code>SELECT event_time, merge_reason, rows_read FROM system.part_log WHERE table='firehose' AND event_type='MergeParts' ORDER BY event_time DESC LIMIT 20</code></td></tr>
+      <tr><td>Why was a sync insert slow?</td><td><code>SELECT ProfileEvents['DelayedInserts'], ProfileEvents['DelayedInsertsMilliseconds'] FROM system.query_log WHERE query LIKE '%firehose%'</code></td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section>
+  <div class="eyebrow"><b>6</b> · Next</div>
+  <h2>Where to go from here</h2>
+  <div class="next">
+    <a href="04_dictionaries.html"><div class="nx-eyebrow">Lab · 04</div><div class="nx-t">Dictionaries: stop JOINing dimensions →</div></a>
+    <a href="11_merge_machine.html"><div class="nx-eyebrow">Lab · 11 (expert)</div><div class="nx-t">The merge machine: break it on purpose →</div></a>
+  </div>
+</section>
+
+<footer>lab/sql/03_async_inserts.sql · part of clickhouse-playground</footer>
+</main></body></html>

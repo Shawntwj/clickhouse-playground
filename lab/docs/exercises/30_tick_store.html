@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lab 30 · Tick store — market data is ClickHouse's home turf</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#16181d;--panel:#1e2128;--panel2:#23262e;--line:#31353f;--ink:#e8e6df;--dim:#989ca6;--faint:#6b7078;--yellow:#f5c518;--read:#5fa8ff;--danger:#ff5d52;--ok:#5ad08a;--mono:'IBM Plex Mono',ui-monospace,monospace;--disp:'Space Grotesk',sans-serif;--body:'Inter',system-ui,sans-serif}
+  *{box-sizing:border-box;margin:0;padding:0}body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.65}main{max-width:980px;margin:0 auto;padding:0 20px 120px}a{color:var(--yellow)}::selection{background:var(--yellow);color:#16181d}
+  header{padding:64px 0 40px;border-bottom:1px solid var(--line)}.crumb{font-family:var(--mono);font-size:13px;color:var(--faint)}.crumb b{color:var(--yellow);font-weight:500}.crumb a{color:var(--faint);text-decoration:none}.crumb a:hover{color:var(--yellow)}
+  h1{font-family:var(--disp);font-weight:700;font-size:clamp(30px,5vw,46px);line-height:1.08;margin:14px 0;letter-spacing:-.02em}h1 .y{color:var(--yellow)}.lede{max-width:680px;color:var(--dim);font-size:17px}.lede b{color:var(--ink);font-weight:600}
+  .meta{display:flex;flex-wrap:wrap;gap:18px;margin-top:22px;font-family:var(--mono);font-size:12.5px;color:var(--faint)}.meta b{color:var(--ink);font-weight:500}
+  section{padding:48px 0 8px;border-bottom:1px solid var(--line)}section:last-of-type{border-bottom:none}
+  .eyebrow{font-family:var(--mono);font-size:12.5px;color:var(--faint);margin-bottom:10px;letter-spacing:.04em;text-transform:uppercase}.eyebrow b{color:var(--yellow);font-weight:500}
+  h2{font-family:var(--disp);font-weight:700;font-size:clamp(22px,3vw,28px);letter-spacing:-.01em;margin-bottom:14px}h3{font-family:var(--disp);font-weight:500;font-size:18px;margin:22px 0 8px}
+  p.prose{max-width:680px;color:var(--dim);margin-bottom:14px}p.prose b{color:var(--ink);font-weight:600}p.prose code,.inline{font-family:var(--mono);font-size:.88em;background:var(--panel2);padding:2px 6px;border-radius:4px;color:var(--ink)}
+  pre.sql,pre.shell,pre.diagram{font-family:var(--mono);font-size:13px;line-height:1.55;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:16px 18px;overflow-x:auto;margin:12px 0 14px;color:var(--ink);white-space:pre}
+  pre.shell{border-left:3px solid var(--read)}pre.sql{border-left:3px solid var(--yellow)}pre.diagram{border-left:3px solid var(--faint);color:var(--dim)}
+  pre .kw{color:var(--read)}pre .lit{color:var(--yellow)}pre .com{color:var(--faint);font-style:italic}pre .ok{color:var(--ok)}pre .bad{color:var(--danger)}
+  .step{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:20px 22px;margin:18px 0}.step-h{display:flex;flex-wrap:wrap;align-items:baseline;gap:10px;margin-bottom:6px}.step-n{font-family:var(--mono);font-size:11px;color:var(--yellow);background:var(--panel2);padding:3px 8px;border-radius:4px;font-weight:600}.step-t{font-family:var(--disp);font-size:17px;font-weight:600}
+  .expect{border-left:3px solid var(--ok);padding:6px 0 6px 14px;color:var(--dim);font-size:14.5px;margin:10px 0 0;max-width:660px}.expect b{color:var(--ink)}.expect .num{color:var(--yellow);font-family:var(--mono);font-weight:600}
+  .gotcha{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--danger);border-radius:8px;padding:14px 18px;margin:10px 0;color:var(--dim);max-width:720px}.gotcha b{color:var(--ink);font-weight:600}.gotcha .tag{font-family:var(--mono);font-size:11px;color:var(--danger);text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:4px}
+  .takeaway{border-left:3px solid var(--yellow);padding:6px 0 6px 16px;color:var(--ink);max-width:680px;margin:12px 0 0;font-size:15.5px}.takeaway b{color:var(--yellow)}
+  table{width:100%;border-collapse:collapse;font-size:14px;margin:12px 0 18px}th{font-family:var(--mono);font-size:11.5px;color:var(--faint);text-align:left;font-weight:500;padding:10px 12px;border-bottom:1px solid var(--line);text-transform:uppercase;letter-spacing:.04em}td{padding:10px 12px;border-bottom:1px solid var(--line);color:var(--dim);vertical-align:top}td code{font-family:var(--mono);font-size:.86em;color:var(--ink);background:var(--panel2);padding:2px 6px;border-radius:3px}tr td:first-child{color:var(--ink);font-weight:500}
+  .next{display:flex;flex-wrap:wrap;gap:14px;margin-top:18px}.next a{display:block;flex:1 1 280px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px 16px;text-decoration:none;color:var(--dim);transition:border-color .15s}.next a:hover{border-color:var(--yellow)}.next .nx-eyebrow{font-family:var(--mono);font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px}.next .nx-t{color:var(--ink);font-weight:600;font-size:15px}
+  footer{margin-top:60px;padding-top:24px;border-top:1px solid var(--line);font-family:var(--mono);font-size:13px;color:var(--faint)}
+</style>
+</head>
+<body><main>
+
+<header>
+  <div class="crumb"><a href="../../../README.md">clickhouse-playground</a> / <a href="../../README.md">lab</a> / <a href="index.html">exercises</a> / <b>30 · tick_store</b></div>
+  <h1>The <span class="y">tick store</span> — and why finance picked ClickHouse.</h1>
+  <p class="lede">Quant shops run tick stores on exactly this engine. Codecs were made for time-series numbers, materialized views give you every OHLCV granularity for free, and <code>ASOF JOIN</code> is the killer feature — nearest-in-the-past matching at MergeTree scan speed. The one feature that justified finance adopting CH.</p>
+  <div class="meta">
+    <span>File · <b>lab/sql/30_tick_store.sql</b></span>
+    <span>Reading · <b>~14 min</b></span>
+    <span>Level · <b>Domain (finance)</b></span>
+    <span>Prereq · <b>make up</b></span>
+  </div>
+</header>
+
+<section>
+  <div class="eyebrow"><b>A</b> · The tick table</div>
+  <h2>Codecs were made for this</h2>
+  <pre class="sql"><span class="kw">CREATE TABLE</span> lab.ticks
+(
+    symbol   <span class="kw">LowCardinality</span>(<span class="kw">String</span>),
+    ts       <span class="kw">DateTime64</span>(<span class="lit">3</span>) <span class="kw">CODEC</span>(DoubleDelta, ZSTD),  <span class="com">-- ms precision</span>
+    price    <span class="kw">Float64</span>       <span class="kw">CODEC</span>(Gorilla, ZSTD),      <span class="com">-- slow-changing floats</span>
+    size     <span class="kw">UInt32</span>        <span class="kw">CODEC</span>(T64, ZSTD),
+    side     <span class="kw">Enum8</span>(<span class="lit">'buy'</span> = <span class="lit">1</span>, <span class="lit">'sell'</span> = -<span class="lit">1</span>)
+)
+<span class="kw">ENGINE</span> = MergeTree
+<span class="kw">PARTITION BY</span> toYYYYMMDD(ts)              <span class="com">-- daily: instant drops, fast backfills</span>
+<span class="kw">ORDER BY</span> (symbol, ts);                   <span class="com">-- ALL queries are "symbol over time"</span></pre>
+  <p class="prose">Simulate a day of ticks — random walks for 20 symbols:</p>
+  <pre class="sql"><span class="kw">INSERT INTO</span> lab.ticks
+<span class="kw">SELECT</span>
+    concat(<span class="lit">'SYM'</span>, toString(number % <span class="lit">20</span>))                       <span class="kw">AS</span> symbol,
+    toDateTime64(today(), <span class="lit">3</span>) + toIntervalMillisecond(intDiv(number, <span class="lit">20</span>) * <span class="lit">350</span>) <span class="kw">AS</span> ts,
+    <span class="lit">100</span> + (number % <span class="lit">20</span>) * <span class="lit">10</span> + <span class="lit">3</span> * sin(intDiv(number, <span class="lit">20</span>) / <span class="lit">5000</span>) + randNormal(<span class="lit">0</span>, <span class="lit">0.15</span>) <span class="kw">AS</span> price,
+    <span class="lit">1</span> + rand() % <span class="lit">500</span>                                           <span class="kw">AS</span> size,
+    if(rand() % <span class="lit">2</span> = <span class="lit">0</span>, <span class="lit">'buy'</span>, <span class="lit">'sell'</span>)                          <span class="kw">AS</span> side
+<span class="kw">FROM</span> numbers_mt(<span class="lit">5000000</span>);
+
+<span class="com">-- Tick data routinely compresses 10-20x with these codecs:</span>
+<span class="kw">SELECT</span> name, formatReadableSize(data_compressed_bytes) c,
+       round(data_uncompressed_bytes / data_compressed_bytes, <span class="lit">1</span>) <span class="kw">AS</span> ratio
+<span class="kw">FROM</span> system.columns <span class="kw">WHERE</span> table = <span class="lit">'ticks'</span> <span class="kw">AND</span> database = <span class="lit">'lab'</span>;</pre>
+  <p class="takeaway">
+    <code>DoubleDelta</code> for timestamps, <code>Gorilla</code> for floats, <code>T64</code> for size. Same codecs Facebook's Beringei paper put on the map — natively supported here.
+  </p>
+</section>
+
+<section>
+  <div class="eyebrow"><b>B</b> · OHLCV bars as MVs</div>
+  <h2>Every granularity, computed at ingest</h2>
+  <pre class="sql"><span class="kw">CREATE TABLE</span> lab.bars_1m
+(
+    symbol <span class="kw">LowCardinality</span>(<span class="kw">String</span>),
+    bar    <span class="kw">DateTime</span>,
+    open   <span class="kw">AggregateFunction</span>(argMin, <span class="kw">Float64</span>, <span class="kw">DateTime64</span>(<span class="lit">3</span>)),
+    high   <span class="kw">SimpleAggregateFunction</span>(max, <span class="kw">Float64</span>),
+    low    <span class="kw">SimpleAggregateFunction</span>(min, <span class="kw">Float64</span>),
+    close  <span class="kw">AggregateFunction</span>(argMax, <span class="kw">Float64</span>, <span class="kw">DateTime64</span>(<span class="lit">3</span>)),
+    volume <span class="kw">SimpleAggregateFunction</span>(sum, <span class="kw">UInt64</span>),
+    trades <span class="kw">SimpleAggregateFunction</span>(sum, <span class="kw">UInt64</span>)
+)
+<span class="kw">ENGINE</span> = AggregatingMergeTree
+<span class="kw">ORDER BY</span> (symbol, bar);
+
+<span class="kw">CREATE MATERIALIZED VIEW</span> lab.bars_1m_mv <span class="kw">TO</span> lab.bars_1m <span class="kw">AS</span>
+<span class="kw">SELECT</span>
+    symbol,
+    toStartOfMinute(ts)            <span class="kw">AS</span> bar,
+    argMinState(price, ts)         <span class="kw">AS</span> open,
+    max(price)                     <span class="kw">AS</span> high,
+    min(price)                     <span class="kw">AS</span> low,
+    argMaxState(price, ts)         <span class="kw">AS</span> close,
+    sum(toUInt64(size))            <span class="kw">AS</span> volume,
+    count()                        <span class="kw">AS</span> trades
+<span class="kw">FROM</span> lab.ticks
+<span class="kw">GROUP BY</span> symbol, bar;</pre>
+  <p class="prose">Backfill the bars from existing ticks (MVs only see new inserts):</p>
+  <pre class="sql"><span class="kw">INSERT INTO</span> lab.bars_1m
+<span class="kw">SELECT</span> symbol, toStartOfMinute(ts), argMinState(price, ts), max(price),
+       min(price), argMaxState(price, ts), sum(toUInt64(size)), count()
+<span class="kw">FROM</span> lab.ticks <span class="kw">GROUP BY</span> <span class="lit">1</span>, <span class="lit">2</span>;
+
+<span class="com">-- Read bars (note -Merge for the argMin/argMax states):</span>
+<span class="kw">SELECT</span> symbol, bar,
+       argMinMerge(open) <span class="kw">AS</span> o, max(high) <span class="kw">AS</span> h, min(low) <span class="kw">AS</span> l,
+       argMaxMerge(close) <span class="kw">AS</span> c, sum(volume) <span class="kw">AS</span> v
+<span class="kw">FROM</span> lab.bars_1m
+<span class="kw">WHERE</span> symbol = <span class="lit">'SYM7'</span>
+<span class="kw">GROUP BY</span> symbol, bar <span class="kw">ORDER BY</span> bar
+<span class="kw">LIMIT</span> <span class="lit">10</span>;</pre>
+  <p class="prose">Chain another MV on <code>lab.bars_1m</code> for 5m/1h bars — MVs cascade. Your 5-minute granularity becomes <i>one tier of a pyramid</i> that starts at ticks.</p>
+</section>
+
+<section>
+  <div class="eyebrow"><b>C</b> · ASOF JOIN</div>
+  <h2>The killer feature for market data</h2>
+  <p class="prose">
+    "For each trade, what was the prevailing quote AT THAT MOMENT?" In most databases this is a correlated-subquery nightmare. Here it's one operator.
+  </p>
+  <pre class="sql"><span class="kw">CREATE TABLE</span> lab.quotes
+(
+    symbol <span class="kw">LowCardinality</span>(<span class="kw">String</span>),
+    ts     <span class="kw">DateTime64</span>(<span class="lit">3</span>) <span class="kw">CODEC</span>(DoubleDelta, ZSTD),
+    bid    <span class="kw">Float64</span> <span class="kw">CODEC</span>(Gorilla, ZSTD),
+    ask    <span class="kw">Float64</span> <span class="kw">CODEC</span>(Gorilla, ZSTD)
+)
+<span class="kw">ENGINE</span> = MergeTree <span class="kw">ORDER BY</span> (symbol, ts);
+
+<span class="com">-- Effective spread per trade: join each tick to the LATEST quote &lt;= tick time</span>
+<span class="kw">SELECT</span>
+    t.symbol,
+    count()                                        <span class="kw">AS</span> trades,
+    round(avg(t.price - (q.bid + q.ask) / <span class="lit">2</span>), <span class="lit">4</span>)   <span class="kw">AS</span> avg_px_vs_mid,
+    round(avg(q.ask - q.bid), <span class="lit">4</span>)                   <span class="kw">AS</span> avg_spread
+<span class="kw">FROM</span> lab.ticks <span class="kw">AS</span> t
+<span class="kw">ASOF JOIN</span> lab.quotes <span class="kw">AS</span> q
+    <span class="kw">ON</span> t.symbol = q.symbol <span class="kw">AND</span> t.ts >= q.ts
+<span class="kw">GROUP BY</span> t.symbol
+<span class="kw">ORDER BY</span> t.symbol;</pre>
+  <p class="takeaway">
+    <b>ASOF JOIN = equality keys + ONE inequality on time.</b> Nearest-in-the-past matching at MergeTree scan speed. <b>This single feature is why finance adopted ClickHouse</b> — and it's exactly what aligning multi-source scraped feeds (prices, funding, sentiment) requires.
+  </p>
+</section>
+
+<section>
+  <div class="eyebrow"><b>D</b> · Gotchas</div>
+  <h2>What experts know</h2>
+  <div class="gotcha"><span class="tag">Trap</span>
+    <b>ASOF JOIN requires the inequality on a sortable column.</b> Both sides must be ORDER BY'd compatibly for it to stream efficiently. Time is the usual axis; the optimizer is happiest when both tables sort by <code>(symbol, ts)</code>.
+  </div>
+  <div class="gotcha"><span class="tag">Trap</span>
+    <b>argMin/argMax states are big.</b> Storing both <code>open</code> and <code>close</code> as <code>AggregateFunction(argMin/Max, Float64, DateTime64(3))</code> is double the price data. Use <code>SimpleAggregateFunction</code> for true min/max/sum where you don't need the "row with min/max" semantics.
+  </div>
+  <div class="gotcha"><span class="tag">Pattern</span>
+    <b>Daily partitions make backtests instant.</b> <code>ATTACH PARTITION '20240115' FROM lab.ticks</code> lets you isolate a single day's data, run a strategy, drop it. Faster than any filesystem-based tick repository.
+  </div>
+</section>
+
+<section>
+  <div class="eyebrow"><b>E</b> · Next</div>
+  <div class="next">
+    <a href="31_ml_features.html"><div class="nx-eyebrow">Lab · 31</div><div class="nx-t">ML pipeline — CH as your feature factory →</div></a>
+    <a href="13_read_warfare.html"><div class="nx-eyebrow">Lab · 13</div><div class="nx-t">Read warfare — caches and projections →</div></a>
+  </div>
+</section>
+
+<footer>lab/sql/30_tick_store.sql · part of clickhouse-playground</footer>
+</main></body></html>

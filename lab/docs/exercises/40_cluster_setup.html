@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lab 40 · Cluster setup — ON CLUSTER, Keeper, the wiring</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#16181d;--panel:#1e2128;--panel2:#23262e;--line:#31353f;--ink:#e8e6df;--dim:#989ca6;--faint:#6b7078;--yellow:#f5c518;--read:#5fa8ff;--danger:#ff5d52;--ok:#5ad08a;--mono:'IBM Plex Mono',ui-monospace,monospace;--disp:'Space Grotesk',sans-serif;--body:'Inter',system-ui,sans-serif}
+  *{box-sizing:border-box;margin:0;padding:0}body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.65}main{max-width:980px;margin:0 auto;padding:0 20px 120px}a{color:var(--yellow)}::selection{background:var(--yellow);color:#16181d}
+  header{padding:64px 0 40px;border-bottom:1px solid var(--line)}.crumb{font-family:var(--mono);font-size:13px;color:var(--faint)}.crumb b{color:var(--yellow);font-weight:500}.crumb a{color:var(--faint);text-decoration:none}.crumb a:hover{color:var(--yellow)}
+  h1{font-family:var(--disp);font-weight:700;font-size:clamp(30px,5vw,46px);line-height:1.08;margin:14px 0;letter-spacing:-.02em}h1 .y{color:var(--yellow)}.lede{max-width:680px;color:var(--dim);font-size:17px}.lede b{color:var(--ink);font-weight:600}
+  .meta{display:flex;flex-wrap:wrap;gap:18px;margin-top:22px;font-family:var(--mono);font-size:12.5px;color:var(--faint)}.meta b{color:var(--ink);font-weight:500}
+  section{padding:48px 0 8px;border-bottom:1px solid var(--line)}section:last-of-type{border-bottom:none}
+  .eyebrow{font-family:var(--mono);font-size:12.5px;color:var(--faint);margin-bottom:10px;letter-spacing:.04em;text-transform:uppercase}.eyebrow b{color:var(--yellow);font-weight:500}
+  h2{font-family:var(--disp);font-weight:700;font-size:clamp(22px,3vw,28px);letter-spacing:-.01em;margin-bottom:14px}h3{font-family:var(--disp);font-weight:500;font-size:18px;margin:22px 0 8px}
+  p.prose{max-width:680px;color:var(--dim);margin-bottom:14px}p.prose b{color:var(--ink);font-weight:600}p.prose code,.inline{font-family:var(--mono);font-size:.88em;background:var(--panel2);padding:2px 6px;border-radius:4px;color:var(--ink)}
+  pre.sql,pre.shell,pre.diagram{font-family:var(--mono);font-size:13px;line-height:1.55;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:16px 18px;overflow-x:auto;margin:12px 0 14px;color:var(--ink);white-space:pre}
+  pre.shell{border-left:3px solid var(--read)}pre.sql{border-left:3px solid var(--yellow)}pre.diagram{border-left:3px solid var(--faint);color:var(--dim)}
+  pre .kw{color:var(--read)}pre .lit{color:var(--yellow)}pre .com{color:var(--faint);font-style:italic}pre .ok{color:var(--ok)}pre .bad{color:var(--danger)}
+  .step{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:20px 22px;margin:18px 0}.step-h{display:flex;flex-wrap:wrap;align-items:baseline;gap:10px;margin-bottom:6px}.step-n{font-family:var(--mono);font-size:11px;color:var(--yellow);background:var(--panel2);padding:3px 8px;border-radius:4px;font-weight:600}.step-t{font-family:var(--disp);font-size:17px;font-weight:600}
+  .expect{border-left:3px solid var(--ok);padding:6px 0 6px 14px;color:var(--dim);font-size:14.5px;margin:10px 0 0;max-width:660px}.expect b{color:var(--ink)}.expect .num{color:var(--yellow);font-family:var(--mono);font-weight:600}
+  .gotcha{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--danger);border-radius:8px;padding:14px 18px;margin:10px 0;color:var(--dim);max-width:720px}.gotcha b{color:var(--ink);font-weight:600}.gotcha .tag{font-family:var(--mono);font-size:11px;color:var(--danger);text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:4px}
+  .takeaway{border-left:3px solid var(--yellow);padding:6px 0 6px 16px;color:var(--ink);max-width:680px;margin:12px 0 0;font-size:15.5px}.takeaway b{color:var(--yellow)}
+  table{width:100%;border-collapse:collapse;font-size:14px;margin:12px 0 18px}th{font-family:var(--mono);font-size:11.5px;color:var(--faint);text-align:left;font-weight:500;padding:10px 12px;border-bottom:1px solid var(--line);text-transform:uppercase;letter-spacing:.04em}td{padding:10px 12px;border-bottom:1px solid var(--line);color:var(--dim);vertical-align:top}td code{font-family:var(--mono);font-size:.86em;color:var(--ink);background:var(--panel2);padding:2px 6px;border-radius:3px}tr td:first-child{color:var(--ink);font-weight:500}
+  .next{display:flex;flex-wrap:wrap;gap:14px;margin-top:18px}.next a{display:block;flex:1 1 280px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px 16px;text-decoration:none;color:var(--dim);transition:border-color .15s}.next a:hover{border-color:var(--yellow)}.next .nx-eyebrow{font-family:var(--mono);font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px}.next .nx-t{color:var(--ink);font-weight:600;font-size:15px}
+  footer{margin-top:60px;padding-top:24px;border-top:1px solid var(--line);font-family:var(--mono);font-size:13px;color:var(--faint)}
+</style>
+</head>
+<body><main>
+
+<header>
+  <div class="crumb"><a href="../../../README.md">clickhouse-playground</a> / <a href="../../README.md">lab</a> / <a href="index.html">exercises</a> / <b>40 · cluster_setup</b></div>
+  <h1>The cluster is just <span class="y">two CH containers + a Keeper</span>.</h1>
+  <p class="lede">Same engine, two physical nodes, one coordination service. Get the wiring right once and every later cluster pattern — replication, sharding, observability — is just SQL on top.</p>
+  <div class="meta">
+    <span>File · <b>lab/sql/40_cluster_setup.sql</b></span>
+    <span>Reading · <b>~10 min</b></span>
+    <span>Level · <b>Cluster (intro)</b></span>
+    <span>Prereq · <b>make up-cluster</b></span>
+  </div>
+</header>
+
+<section>
+  <div class="eyebrow"><b>0</b> · The point</div>
+  <h2>What changes when there's more than one node</h2>
+  <p class="prose">
+    Single-node ClickHouse needs no coordination — it's the only process touching its data directory. The moment you have <b>two nodes</b>, three new things appear: a <b>coordination service</b> (ClickHouse Keeper, the ZooKeeper replacement) that arbitrates who-owns-what, <b>cluster definitions</b> in config that tell each node "you are part of a group called X", and <b>ON CLUSTER DDL</b> that runs a CREATE/DROP on every node in one shot.
+  </p>
+  <p class="takeaway"><b>This lab's setup:</b> 1 Keeper + 2 ClickHouse nodes (ch-1, ch-2), with TWO clusters defined over the same containers — <code>cluster_1s2r</code> for replication exercises and <code>cluster_2s1r</code> for sharding exercises. Same physical infra, two logical topologies.</p>
+</section>
+
+<section>
+  <div class="eyebrow"><b>1</b> · Mental model</div>
+  <h2>The three new pieces</h2>
+  <pre class="diagram">                        ┌─────────────────┐
+                        │   ch-keeper     │   ← coordination service
+                        │ (ZooKeeper API) │     consensus, locks, queues
+                        └────┬───────┬────┘
+                             │       │
+              ┌──────────────┘       └──────────────┐
+              ▼                                     ▼
+        ┌──────────┐                          ┌──────────┐
+        │   ch-1   │  ◄── data replication ──►│   ch-2   │
+        │ :9000    │                          │ :9000    │
+        │ :8124    │                          │ :8125    │
+        └──────────┘                          └──────────┘
+
+  cluster_1s2r = 1 shard with 2 replicas       (ch-1 and ch-2 hold SAME data)
+  cluster_2s1r = 2 shards with 1 replica each  (ch-1 ≠ ch-2; different slices)</pre>
+</section>
+
+<section>
+  <div class="eyebrow"><b>2</b> · Run it</div>
+  <h2>Five checks before you trust the cluster</h2>
+
+  <div class="step">
+    <div class="step-h"><span class="step-n">Step 0</span><span class="step-t">Bring it up.</span></div>
+    <pre class="shell">make up-cluster
+
+<span class="com"># Sanity:</span>
+make cluster-status</pre>
+    <p class="expect">Output lists both clusters with two rows each, plus a confirmation that ch-1 can talk to Keeper.</p>
+  </div>
+
+  <div class="step">
+    <div class="step-h"><span class="step-n">Step A</span><span class="step-t">See the clusters and Keeper from ch-1.</span></div>
+    <pre class="shell">make sql-1</pre>
+    <pre class="sql"><span class="kw">SELECT</span> cluster, shard_num, replica_num, host_name, port, is_local
+<span class="kw">FROM</span> system.clusters
+<span class="kw">WHERE</span> cluster <span class="kw">LIKE</span> <span class="lit">'cluster_%'</span>
+<span class="kw">ORDER BY</span> cluster, shard_num, replica_num;
+
+<span class="kw">SELECT</span> name, value <span class="kw">FROM</span> system.zookeeper <span class="kw">WHERE</span> path = <span class="lit">'/'</span>;</pre>
+    <p class="expect">
+      The first query returns 4 rows (2 per cluster). The second returns Keeper's root children — typically <code>clickhouse</code> and <code>keeper</code>. If <code>system.zookeeper</code> errors, Keeper isn't reachable; check <code>docker logs ch-keeper</code>.
+    </p>
+  </div>
+
+  <div class="step">
+    <div class="step-h"><span class="step-n">Step B</span><span class="step-t">First ON CLUSTER DDL.</span></div>
+    <pre class="sql"><span class="kw">CREATE DATABASE IF NOT EXISTS</span> lab <span class="kw">ON CLUSTER</span> cluster_1s2r;</pre>
+    <p class="prose">Without <code>ON CLUSTER</code>, the database would only exist on the node you ran it on. With it, the DDL goes into a queue persisted in Keeper, both nodes pull from the queue and execute. Inspect:</p>
+    <pre class="sql"><span class="kw">SELECT</span> host_name, query, query_create_time, exception
+<span class="kw">FROM</span> system.distributed_ddl_queue
+<span class="kw">ORDER BY</span> query_create_time <span class="kw">DESC</span> <span class="kw">LIMIT</span> <span class="lit">5</span>;</pre>
+    <p class="expect"><b>Healthy entry:</b> two rows (one per host), <code>exception = ''</code>, both finished.</p>
+  </div>
+
+  <div class="step">
+    <div class="step-h"><span class="step-n">Step C</span><span class="step-t">Inspect per-node macros.</span></div>
+    <pre class="sql"><span class="kw">SELECT</span> macro, substitution <span class="kw">FROM</span> system.macros;</pre>
+    <p class="prose">
+      On ch-1: <code>{shard}=01</code>, <code>{replica}=ch-1</code>. On ch-2: <code>{shard}=01</code>, <code>{replica}=ch-2</code>. These are configured per-container in <code>cluster/config/ch-{1,2}/macros.xml</code>. <code>{replica}</code> uniquely identifies the node; <code>{shard}</code> is the same here because both nodes are replicas of the same shard in <code>cluster_1s2r</code>.
+    </p>
+  </div>
+
+  <div class="step">
+    <div class="step-h"><span class="step-n">Step D</span><span class="step-t">Verify both nodes are healthy (preview of ex. 44).</span></div>
+    <pre class="sql"><span class="kw">SELECT</span> _shard_num, hostName(), version()
+<span class="kw">FROM</span> clusterAllReplicas(<span class="lit">'cluster_1s2r'</span>, system.one);</pre>
+    <p class="expect"><b>Two rows:</b> ch-1 and ch-2. If one is missing, that node is down or unreachable — Keeper still works, but you've lost a replica.</p>
+  </div>
+</section>
+
+<section>
+  <div class="eyebrow"><b>3</b> · The DDL-via-Keeper picture</div>
+  <pre class="diagram">  CREATE DATABASE lab ON CLUSTER cluster_1s2r;
+                  │
+                  ▼
+        ┌─── ch-keeper ───┐         queue stores: SQL + target hosts + status
+        │  /clickhouse/   │
+        │   /task_queue   │
+        │      /ddl       │
+        └─┬─────────────┬─┘
+          │             │     each ClickHouse node polls the queue
+          ▼             ▼     and executes its own copy of the DDL,
+        ch-1          ch-2    then writes the result back to Keeper.
+
+  system.distributed_ddl_queue surfaces all of this in SQL.</pre>
+</section>
+
+<section>
+  <div class="eyebrow"><b>4</b> · Gotchas</div>
+  <h2>What experts know</h2>
+  <div class="gotcha"><span class="tag">Trap</span>
+    <b>Forget <code>ON CLUSTER</code> and your tables exist on one node only.</b> Insidious because reads via Distributed will SILENTLY return data from only some shards. Make ON CLUSTER muscle memory for every DDL.
+  </div>
+  <div class="gotcha"><span class="tag">Trap</span>
+    <b>The DDL queue can stall.</b> If one node is down, the DDL queue entry sits with status <code>inactive</code> for that host. New ON CLUSTER DDLs queue up behind it. Fix the node OR delete the queue entry via Keeper: <code>SYSTEM DROP DNS CACHE</code> / restart strategies vary by version.
+  </div>
+  <div class="gotcha"><span class="tag">Pattern</span>
+    <b>Keeper is the single point of coordination — make it HA in prod.</b> This lab uses 1 Keeper for simplicity. Real deployments run 3 or 5 Keeper nodes with Raft consensus. Same config, just multiple <code>&lt;server&gt;</code> blocks in <code>keeper_config.xml</code>.
+  </div>
+  <div class="gotcha"><span class="tag">Pattern</span>
+    <b>Use <code>DROP … SYNC</code> on cluster DDL.</b> The default is async — DROP returns before all nodes finish. <code>SYNC</code> blocks until done, which is what you want in tests/CI.
+  </div>
+</section>
+
+<section>
+  <div class="eyebrow"><b>5</b> · Prove it</div>
+  <table>
+    <thead><tr><th>Question</th><th>Query</th></tr></thead>
+    <tbody>
+      <tr><td>Are my clusters defined?</td><td><code>SELECT * FROM system.clusters</code></td></tr>
+      <tr><td>Is Keeper reachable?</td><td><code>SELECT * FROM system.zookeeper WHERE path = '/'</code></td></tr>
+      <tr><td>Are macros set correctly?</td><td><code>SELECT * FROM system.macros</code></td></tr>
+      <tr><td>Is the DDL queue healthy?</td><td><code>SELECT * FROM system.distributed_ddl_queue ORDER BY query_create_time DESC</code></td></tr>
+      <tr><td>Are both nodes responsive?</td><td><code>SELECT _shard_num, hostName() FROM clusterAllReplicas('cluster_1s2r', system.one)</code></td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section>
+  <div class="eyebrow"><b>6</b> · Next</div>
+  <div class="next">
+    <a href="41_replicated_merge_tree.html"><div class="nx-eyebrow">Lab · 41</div><div class="nx-t">ReplicatedMergeTree — HA + free insert dedup →</div></a>
+    <a href="42_distributed_sharding.html"><div class="nx-eyebrow">Lab · 42</div><div class="nx-t">Distributed + sharding — one logical table over N shards →</div></a>
+  </div>
+</section>
+
+<footer>lab/sql/40_cluster_setup.sql · part of clickhouse-playground</footer>
+</main></body></html>

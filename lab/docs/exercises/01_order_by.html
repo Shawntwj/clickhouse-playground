@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lab 01 · ORDER BY — the biggest single win</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#16181d; --panel:#1e2128; --panel2:#23262e; --line:#31353f;
+    --ink:#e8e6df; --dim:#989ca6; --faint:#6b7078;
+    --yellow:#f5c518; --read:#5fa8ff; --danger:#ff5d52; --ok:#5ad08a;
+    --mono:'IBM Plex Mono',ui-monospace,monospace;
+    --disp:'Space Grotesk',sans-serif;
+    --body:'Inter',system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.65}
+  main{max-width:980px;margin:0 auto;padding:0 20px 120px}
+  a{color:var(--yellow)}
+  ::selection{background:var(--yellow);color:#16181d}
+
+  header{padding:64px 0 40px;border-bottom:1px solid var(--line)}
+  .crumb{font-family:var(--mono);font-size:13px;color:var(--faint);letter-spacing:.02em}
+  .crumb b{color:var(--yellow);font-weight:500}
+  .crumb a{color:var(--faint);text-decoration:none}
+  .crumb a:hover{color:var(--yellow)}
+  h1{font-family:var(--disp);font-weight:700;font-size:clamp(30px,5vw,46px);line-height:1.08;margin:14px 0 14px;letter-spacing:-.02em}
+  h1 .y{color:var(--yellow)}
+  .lede{max-width:680px;color:var(--dim);font-size:17px}
+  .lede b{color:var(--ink);font-weight:600}
+  .meta{display:flex;flex-wrap:wrap;gap:18px;margin-top:22px;font-family:var(--mono);font-size:12.5px;color:var(--faint)}
+  .meta b{color:var(--ink);font-weight:500}
+
+  section{padding:48px 0 8px;border-bottom:1px solid var(--line)}
+  section:last-of-type{border-bottom:none}
+  .eyebrow{font-family:var(--mono);font-size:12.5px;color:var(--faint);margin-bottom:10px;letter-spacing:.04em;text-transform:uppercase}
+  .eyebrow b{color:var(--yellow);font-weight:500}
+  h2{font-family:var(--disp);font-weight:700;font-size:clamp(22px,3vw,28px);letter-spacing:-.01em;margin-bottom:14px}
+  h3{font-family:var(--disp);font-weight:500;font-size:18px;margin:22px 0 8px;color:var(--ink)}
+  p.prose{max-width:680px;color:var(--dim);margin-bottom:14px}
+  p.prose b{color:var(--ink);font-weight:600}
+  p.prose code, .inline{font-family:var(--mono);font-size:.88em;background:var(--panel2);padding:2px 6px;border-radius:4px;color:var(--ink)}
+
+  pre.sql, pre.shell, pre.diagram{
+    font-family:var(--mono);font-size:13px;line-height:1.55;background:var(--panel2);
+    border:1px solid var(--line);border-radius:8px;padding:16px 18px;
+    overflow-x:auto;margin:12px 0 14px;color:var(--ink);white-space:pre
+  }
+  pre.shell{border-left:3px solid var(--read)}
+  pre.sql{border-left:3px solid var(--yellow)}
+  pre.diagram{border-left:3px solid var(--faint);color:var(--dim)}
+  pre .kw{color:var(--read)}
+  pre .lit{color:var(--yellow)}
+  pre .com{color:var(--faint);font-style:italic}
+  pre .ok{color:var(--ok)}
+  pre .bad{color:var(--danger)}
+
+  .step{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:20px 22px;margin:18px 0}
+  .step-h{display:flex;flex-wrap:wrap;align-items:baseline;gap:10px;margin-bottom:6px}
+  .step-n{font-family:var(--mono);font-size:11px;color:var(--yellow);background:var(--panel2);padding:3px 8px;border-radius:4px;font-weight:600}
+  .step-t{font-family:var(--disp);font-size:17px;font-weight:600;color:var(--ink)}
+  .expect{border-left:3px solid var(--ok);padding:6px 0 6px 14px;color:var(--dim);font-size:14.5px;margin:10px 0 0;max-width:660px}
+  .expect b{color:var(--ink)}
+  .expect .num{color:var(--yellow);font-family:var(--mono);font-weight:600}
+
+  .gotcha{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--danger);border-radius:8px;padding:14px 18px;margin:10px 0;color:var(--dim);max-width:720px}
+  .gotcha b{color:var(--ink);font-weight:600}
+  .gotcha .tag{font-family:var(--mono);font-size:11px;color:var(--danger);text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:4px}
+
+  .takeaway{border-left:3px solid var(--yellow);padding:6px 0 6px 16px;color:var(--ink);max-width:680px;margin:12px 0 0;font-size:15.5px}
+  .takeaway b{color:var(--yellow)}
+
+  table{width:100%;border-collapse:collapse;font-size:14px;margin:12px 0 18px}
+  th{font-family:var(--mono);font-size:11.5px;color:var(--faint);text-align:left;font-weight:500;padding:10px 12px;border-bottom:1px solid var(--line);text-transform:uppercase;letter-spacing:.04em}
+  td{padding:10px 12px;border-bottom:1px solid var(--line);color:var(--dim);vertical-align:top}
+  td code{font-family:var(--mono);font-size:.86em;color:var(--ink);background:var(--panel2);padding:2px 6px;border-radius:3px}
+  tr td:first-child{color:var(--ink);font-weight:500}
+
+  .next{display:flex;flex-wrap:wrap;gap:14px;margin-top:18px}
+  .next a{display:block;flex:1 1 280px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px 16px;text-decoration:none;color:var(--dim);transition:border-color .15s}
+  .next a:hover{border-color:var(--yellow)}
+  .next .nx-eyebrow{font-family:var(--mono);font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px}
+  .next .nx-t{color:var(--ink);font-weight:600;font-size:15px}
+
+  footer{margin-top:60px;padding-top:24px;border-top:1px solid var(--line);font-family:var(--mono);font-size:13px;color:var(--faint)}
+</style>
+</head>
+<body>
+<main>
+
+<header>
+  <div class="crumb"><a href="../../README.md">clickhouse-playground</a> / <a href="../README.md">lab</a> / <a href="index.html">exercises</a> / <b>01 · order_by</b></div>
+  <h1>The biggest single optimization is your <span class="y">ORDER&nbsp;BY</span>.</h1>
+  <p class="lede">ClickHouse never finds a row — it skips <b>granules</b> of 8192 rows using a sparse index. Whether it skips 99% of the table or scans the whole thing comes down to one choice you make once, at <code>CREATE TABLE</code> time, and can't change later without rebuilding.</p>
+  <div class="meta">
+    <span>File · <b>lab/sql/01_seed_and_order_by.sql</b></span>
+    <span>Reading · <b>~12 min</b></span>
+    <span>Level · <b>Fundamentals</b></span>
+    <span>Prereq · <b>make up</b></span>
+  </div>
+</header>
+
+<!-- ============ 0. THE POINT ============ -->
+<section>
+  <div class="eyebrow"><b>0</b> · The point</div>
+  <h2>Why this exercise exists</h2>
+  <p class="prose">
+    Two tables with the <b>same 20 million rows</b>, the <b>same query</b>, and a ~100x difference in elapsed time. The only difference is the column order in <code>ORDER BY</code>. Once you've seen and explained that gap, you understand what the sparse index actually does — and most of ClickHouse query performance follows from it.
+  </p>
+  <p class="takeaway"><b>The lesson:</b> put the columns you <b>filter by</b> in front, ordered <b>low cardinality → high cardinality</b>. Time usually goes last, not first.</p>
+</section>
+
+<!-- ============ 1. MENTAL MODEL ============ -->
+<section>
+  <div class="eyebrow"><b>1</b> · Mental model</div>
+  <h2>How the sparse index actually works</h2>
+
+  <p class="prose">
+    Every <span class="inline">MergeTree</span> table is a stack of <b>parts</b> (immutable directories on disk). Each part stores columns separately, and each column file is divided into <b>granules</b> of 8192 rows. The "primary index" holds <b>one entry per granule</b>, not per row.
+  </p>
+
+  <pre class="diagram">part_2026_06_1_1_0/
+ ├── site_id.bin       columns are files, compressed
+ ├── event_time.bin
+ ├── url.bin
+ └── primary.idx       ONE entry per 8192 rows ("granule")
+                       just the FIRST value of the ORDER BY tuple
+
+query:  WHERE site_id = 42 AND event_time > now() - 7d
+
+ORDER BY (site_id, event_time)          ORDER BY user_id
+┌──┬──┬──┬██┬██┬──┬──┬──┬──┬──┐         ┌██┬██┬██┬██┬██┬██┬██┬██┬██┬██┐
+└──┴──┴──┴──┴──┴──┴──┴──┴──┴──┘         └──┴──┴──┴──┴──┴──┴──┴──┴──┴──┘
+   skipped     read     skipped            ALL granules selected
+   ~2 granules of 2440                     20M rows scanned</pre>
+
+  <p class="prose">
+    The filter on <code>site_id = 42</code> uses the primary index to <b>locate two adjacent granules</b> where 42 lives, then reads only those. The "bad" table sorts by <code>user_id</code> first, so the index for <code>site_id</code> is meaningless — every granule could contain site 42, so all of them get read.
+  </p>
+
+  <p class="prose">
+    Rules of thumb, in priority order:
+  </p>
+  <ul style="margin-left:22px;color:var(--dim);max-width:680px">
+    <li style="margin:6px 0"><b>Put filter columns in front</b>, ordered <b>low → high cardinality</b>. <span class="inline">(tenant_id, site_id, event_time)</span> is canonical.</li>
+    <li style="margin:6px 0"><b>Time usually goes last among filters</b>. Most queries are "for entity X over a time range" — entity then time.</li>
+    <li style="margin:6px 0"><b><code>PARTITION BY</code> is for lifecycle</b> (drops, TTL), not query speed. <span class="inline">toYYYYMM(...)</span> is the safe default. Hundreds of partitions = you over-partitioned.</li>
+    <li style="margin:6px 0"><b>You can't change <code>ORDER BY</code> later</b> without rebuilding the table. Spend design time here.</li>
+  </ul>
+</section>
+
+<!-- ============ 2. RUN IT ============ -->
+<section>
+  <div class="eyebrow"><b>2</b> · Run it</div>
+  <h2>The exercise</h2>
+
+  <p class="prose">From the repo root, after <span class="inline">make up</span>:</p>
+
+  <pre class="shell"><span class="com"># Seeds both tables with the same 20M rows. ~30-60s on a laptop.</span>
+make seed</pre>
+
+  <p class="prose">That executes <code>lab/sql/01_seed_and_order_by.sql</code>, which creates two tables:</p>
+
+  <pre class="sql"><span class="com">-- "Bad": high-cardinality column first. Index can't prune.</span>
+<span class="kw">CREATE TABLE</span> lab.events_bad
+(
+    event_time  <span class="kw">DateTime</span>,
+    user_id     <span class="kw">UInt64</span>,
+    site_id     <span class="kw">UInt64</span>,
+    country     <span class="kw">String</span>,
+    url         <span class="kw">String</span>,
+    duration_ms <span class="kw">UInt64</span>
+)
+<span class="kw">ENGINE</span> = MergeTree
+<span class="kw">ORDER BY</span> user_id;   <span class="com">-- high-cardinality first = sparse index useless</span>
+
+<span class="com">-- "Good": low-cardinality prefix, time second, tight types, codecs.</span>
+<span class="kw">CREATE TABLE</span> lab.events
+(
+    event_time  <span class="kw">DateTime</span> <span class="kw">CODEC</span>(Delta, ZSTD),
+    user_id     <span class="kw">UInt32</span>,
+    site_id     <span class="kw">UInt16</span>,
+    country     <span class="kw">LowCardinality</span>(<span class="kw">String</span>),
+    url         <span class="kw">LowCardinality</span>(<span class="kw">String</span>),
+    duration_ms <span class="kw">UInt16</span> <span class="kw">CODEC</span>(T64, ZSTD)
+)
+<span class="kw">ENGINE</span> = MergeTree
+<span class="kw">PARTITION BY</span> toYYYYMM(event_time)
+<span class="kw">ORDER BY</span> (site_id, event_time);   <span class="com">-- matches "site X over time"</span></pre>
+
+  <div class="step">
+    <div class="step-h"><span class="step-n">Step 1</span><span class="step-t">Same question, both tables.</span></div>
+    <p class="prose">Open <a href="http://localhost:8123/play">http://localhost:8123/play</a> (admin / admin) and run:</p>
+    <pre class="sql"><span class="kw">SELECT</span> quantile(0.95)(duration_ms)
+<span class="kw">FROM</span> lab.events_bad
+<span class="kw">WHERE</span> site_id = <span class="lit">42</span> <span class="kw">AND</span> event_time > now() - <span class="kw">INTERVAL</span> <span class="lit">7</span> <span class="kw">DAY</span>;
+
+<span class="kw">SELECT</span> quantile(0.95)(duration_ms)
+<span class="kw">FROM</span> lab.events
+<span class="kw">WHERE</span> site_id = <span class="lit">42</span> <span class="kw">AND</span> event_time > now() - <span class="kw">INTERVAL</span> <span class="lit">7</span> <span class="kw">DAY</span>;</pre>
+    <p class="expect">
+      <b>Expect:</b> <span class="num">~100×</span> elapsed difference. The <code>Elapsed</code> line and <code>Read X rows, Y MB</code> tail under the result are the truth-teller. The bad table reads ~20M rows; the good one reads tens of thousands.
+    </p>
+  </div>
+
+  <div class="step">
+    <div class="step-h"><span class="step-n">Step 2</span><span class="step-t">Prove it with EXPLAIN.</span></div>
+    <pre class="sql"><span class="kw">EXPLAIN</span> indexes = <span class="lit">1</span>
+<span class="kw">SELECT</span> quantile(0.95)(duration_ms)
+<span class="kw">FROM</span> lab.events
+<span class="kw">WHERE</span> site_id = <span class="lit">42</span> <span class="kw">AND</span> event_time > now() - <span class="kw">INTERVAL</span> <span class="lit">7</span> <span class="kw">DAY</span>;</pre>
+    <p class="expect">
+      Look for <code>Granules: X/Y</code>. On the good table, X is a tiny fraction of Y. Re-run against <code>events_bad</code> and watch X approach Y — that's a full scan with extra steps.
+    </p>
+  </div>
+
+  <div class="step">
+    <div class="step-h"><span class="step-n">Step 3</span><span class="step-t">Read the receipts in the query log.</span></div>
+    <pre class="sql"><span class="kw">SELECT</span>
+    query_duration_ms,
+    read_rows,
+    formatReadableSize(read_bytes) <span class="kw">AS</span> read,
+    tables
+<span class="kw">FROM</span> system.query_log
+<span class="kw">WHERE</span> type = <span class="lit">'QueryFinish'</span> <span class="kw">AND</span> query_kind = <span class="lit">'Select'</span>
+  <span class="kw">AND</span> (has(tables, <span class="lit">'lab.events'</span>) <span class="kw">OR</span> has(tables, <span class="lit">'lab.events_bad'</span>))
+<span class="kw">ORDER BY</span> event_time <span class="kw">DESC</span>
+<span class="kw">LIMIT</span> <span class="lit">10</span>;</pre>
+    <p class="expect">
+      Two rows for the same logical query. The <code>read_rows</code> column tells the whole story: ~thousands vs ~20 million.
+    </p>
+  </div>
+</section>
+
+<!-- ============ 3. SYSTEM TABLES ============ -->
+<section>
+  <div class="eyebrow"><b>3</b> · Prove it</div>
+  <h2>System tables to keep open alongside</h2>
+
+  <table>
+    <thead><tr><th>Question</th><th>Query</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>How many granules per part?</td>
+        <td><code>SELECT name, rows, marks FROM system.parts WHERE table='events' AND active</code></td>
+      </tr>
+      <tr>
+        <td>Granule pruning per query</td>
+        <td><code>EXPLAIN indexes = 1 SELECT ...</code> — read <code>Granules: selected/total</code></td>
+      </tr>
+      <tr>
+        <td>Cache effect (cold vs warm)</td>
+        <td><code>SYSTEM DROP MARK CACHE;</code> then run the query twice — compare <code>query_duration_ms</code></td>
+      </tr>
+      <tr>
+        <td>What did this exact query touch?</td>
+        <td><code>SELECT ProfileEvents['SelectedGranules'], ProfileEvents['SelectedParts'] FROM system.query_log WHERE query_id = '...'</code></td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ============ 4. GOTCHAS ============ -->
+<section>
+  <div class="eyebrow"><b>4</b> · Gotchas</div>
+  <h2>What experts know that beginners don't</h2>
+
+  <div class="gotcha">
+    <span class="tag">Trap</span>
+    <b>Time-first ORDER BY feels natural but is usually wrong.</b> <code>ORDER BY (event_time, site_id)</code> only helps "latest data, all sites" queries. The far more common shape — "this entity, over time" — wants entity first.
+  </div>
+
+  <div class="gotcha">
+    <span class="tag">Trap</span>
+    <b><code>PARTITION BY</code> ≠ a way to speed up queries.</b> It's for lifecycle ops (drop a month, TTL a partition). It also <b>limits</b> the optimizer's ability to merge across partitions. Hundreds of partitions slow everything down.
+  </div>
+
+  <div class="gotcha">
+    <span class="tag">Trap</span>
+    <b>You cannot change <code>ORDER BY</code> with a regular ALTER.</b> You can <code>MODIFY ORDER BY</code> to <i>add</i> a trailing column (rare, narrow rules), but reordering the prefix means: create a new table, <code>INSERT SELECT</code>, swap. The cost of getting this wrong is real.
+  </div>
+
+  <div class="gotcha">
+    <span class="tag">Bigger</span>
+    <b>One ORDER BY can't serve every query.</b> When two access patterns fight (site-then-time vs user-then-time), the answer is a <b>projection</b> (exercise 06) or a second MergeTree fed by a materialized view (exercise 05) — <b>not</b> a compromise <code>ORDER BY</code>.
+  </div>
+</section>
+
+<!-- ============ 5. IN GRAFANA ============ -->
+<section>
+  <div class="eyebrow"><b>5</b> · In Grafana</div>
+  <h2>Where this shows up on the Feedback Loop dashboard</h2>
+  <p class="prose">Open <a href="http://localhost:3000">http://localhost:3000</a> → <b>Feedback Loop</b>. Watch these as you run the queries above:</p>
+  <ul style="margin-left:22px;color:var(--dim);max-width:680px">
+    <li style="margin:6px 0"><b>Rows read per SELECT</b> — the punchline. Bad table = bar reaches the top; good table = barely a blip.</li>
+    <li style="margin:6px 0"><b>Query latency p95</b> — two distinct heights, same workload.</li>
+    <li style="margin:6px 0"><b>Bytes scanned</b> — the I/O you didn't pay for.</li>
+  </ul>
+  <p class="prose">Run <code>make load</code> in a second terminal to keep these panels lively while you tinker.</p>
+</section>
+
+<!-- ============ 6. NEXT ============ -->
+<section>
+  <div class="eyebrow"><b>6</b> · Next</div>
+  <h2>Where to go from here</h2>
+  <div class="next">
+    <a href="02_types_and_codecs.html">
+      <div class="nx-eyebrow">Lab · 02</div>
+      <div class="nx-t">Types, LowCardinality, codecs →</div>
+    </a>
+    <a href="06_query_tuning.html">
+      <div class="nx-eyebrow">Lab · 06 (when ORDER BY can't satisfy two patterns)</div>
+      <div class="nx-t">PREWHERE, skip indexes, projections →</div>
+    </a>
+  </div>
+</section>
+
+<footer>
+  lab/sql/01_seed_and_order_by.sql · part of clickhouse-playground
+</footer>
+
+</main>
+</body>
+</html>

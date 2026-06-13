@@ -1,0 +1,71 @@
+# Cluster overlay: 1 Keeper + 2 ClickHouse nodes, side-by-side with the
+# default single-node `clickhouse` container (different ports, different
+# container names). Start with:
+#   make up-cluster
+# (= docker compose -f docker-compose.yml -f docker-compose.cluster.yml up -d)
+#
+# Two clusters defined in cluster/config/common/clusters.xml:
+#   cluster_1s2r   1 shard  × 2 replicas   → ReplicatedMergeTree exercises (41)
+#   cluster_2s1r   2 shards × 1 replica    → Distributed/sharding exercises (42)
+# Same two containers serve both topologies — they're symmetric.
+
+services:
+  ch-keeper:
+    image: clickhouse/clickhouse-keeper:24.8
+    container_name: ch-keeper
+    ports:
+      - "9181:9181"
+    volumes:
+      - ch_keeper_data:/var/lib/clickhouse-keeper
+      - ./cluster/keeper/keeper_config.xml:/etc/clickhouse-keeper/keeper_config.xml
+
+  ch-1:
+    image: clickhouse/clickhouse-server:24.8
+    container_name: ch-1
+    hostname: ch-1
+    ports:
+      - "8124:8123"   # HTTP
+      - "9001:9000"   # Native
+    environment:
+      CLICKHOUSE_USER: admin
+      CLICKHOUSE_PASSWORD: admin
+    volumes:
+      - ch1_data:/var/lib/clickhouse
+      - ./cluster/config/common/clusters.xml:/etc/clickhouse-server/config.d/clusters.xml
+      - ./cluster/config/ch-1/macros.xml:/etc/clickhouse-server/config.d/macros.xml
+    ulimits:
+      nofile: { soft: 262144, hard: 262144 }
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+    depends_on:
+      - ch-keeper
+
+  ch-2:
+    image: clickhouse/clickhouse-server:24.8
+    container_name: ch-2
+    hostname: ch-2
+    ports:
+      - "8125:8123"
+      - "9002:9000"
+    environment:
+      CLICKHOUSE_USER: admin
+      CLICKHOUSE_PASSWORD: admin
+    volumes:
+      - ch2_data:/var/lib/clickhouse
+      - ./cluster/config/common/clusters.xml:/etc/clickhouse-server/config.d/clusters.xml
+      - ./cluster/config/ch-2/macros.xml:/etc/clickhouse-server/config.d/macros.xml
+    ulimits:
+      nofile: { soft: 262144, hard: 262144 }
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+    depends_on:
+      - ch-keeper
+
+volumes:
+  ch_keeper_data:
+  ch1_data:
+  ch2_data:

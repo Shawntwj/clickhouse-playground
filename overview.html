@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>How ClickHouse works — and how to use this lab to learn it</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#16181d; --panel:#1e2128; --panel2:#23262e; --line:#31353f;
+    --ink:#e8e6df; --dim:#989ca6; --faint:#6b7078;
+    --yellow:#f5c518; --read:#5fa8ff; --danger:#ff5d52; --ok:#5ad08a;
+    --mono:'IBM Plex Mono',ui-monospace,monospace;
+    --disp:'Space Grotesk',sans-serif;
+    --body:'Inter',system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.65}
+  main{max-width:1100px;margin:0 auto;padding:0 20px 140px}
+  a{color:var(--yellow);text-decoration:none}
+  a:hover{text-decoration:underline}
+  ::selection{background:var(--yellow);color:#16181d}
+
+  /* ---------- HERO ---------- */
+  header{padding:72px 0 56px;border-bottom:1px solid var(--line)}
+  .crumb{font-family:var(--mono);font-size:13px;color:var(--faint);letter-spacing:.02em;margin-bottom:24px}
+  .crumb a{color:var(--faint)}.crumb a:hover{color:var(--yellow);text-decoration:none}
+  h1{font-family:var(--disp);font-weight:700;font-size:clamp(38px,6vw,64px);line-height:1.02;letter-spacing:-.025em;margin-bottom:22px}
+  h1 .y{color:var(--yellow)}
+  .hero-lede{max-width:720px;color:var(--dim);font-size:18px;line-height:1.6}
+  .hero-lede b{color:var(--ink);font-weight:600}
+  .pill-row{display:flex;flex-wrap:wrap;gap:10px;margin-top:32px}
+  .pill{display:inline-block;font-family:var(--mono);font-size:12.5px;background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:6px 14px;color:var(--dim)}
+  .pill b{color:var(--yellow);font-weight:600}
+
+  /* ---------- SECTION ---------- */
+  section{padding:64px 0 16px;border-bottom:1px solid var(--line)}
+  section:last-of-type{border-bottom:none}
+  .eyebrow{font-family:var(--mono);font-size:12.5px;color:var(--faint);margin-bottom:14px;letter-spacing:.06em;text-transform:uppercase}
+  .eyebrow b{color:var(--yellow);font-weight:500}
+  h2{font-family:var(--disp);font-weight:700;font-size:clamp(28px,4vw,40px);letter-spacing:-.02em;margin-bottom:18px;max-width:780px;line-height:1.12}
+  h3{font-family:var(--disp);font-weight:600;font-size:22px;letter-spacing:-.01em;margin:32px 0 10px;color:var(--ink)}
+  h4{font-family:var(--disp);font-weight:600;font-size:17px;margin:18px 0 8px;color:var(--ink)}
+  p.prose{max-width:720px;color:var(--dim);margin-bottom:14px;font-size:16px}
+  p.prose b{color:var(--ink);font-weight:600}
+  p.prose code,.inline{font-family:var(--mono);font-size:.88em;background:var(--panel2);padding:2px 6px;border-radius:4px;color:var(--ink)}
+
+  /* ---------- DIAGRAM ---------- */
+  pre.diagram{
+    font-family:var(--mono);font-size:13px;line-height:1.55;background:var(--panel);
+    border:1px solid var(--line);border-radius:10px;padding:22px 24px;
+    overflow-x:auto;margin:18px 0 22px;color:var(--dim);white-space:pre
+  }
+  pre.diagram .y{color:var(--yellow);font-weight:600}
+  pre.diagram .b{color:var(--read)}
+  pre.diagram .g{color:var(--ok)}
+  pre.diagram .r{color:var(--danger)}
+  pre.diagram .i{color:var(--ink)}
+
+  /* ---------- THREE TRUTHS ---------- */
+  .truths{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin:22px 0}
+  .truth{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--yellow);border-radius:10px;padding:22px}
+  .truth .n{font-family:var(--mono);font-size:11px;color:var(--yellow);letter-spacing:.05em;margin-bottom:8px;display:block}
+  .truth h4{font-family:var(--disp);font-size:18px;font-weight:600;margin:0 0 10px;color:var(--ink)}
+  .truth p{color:var(--dim);font-size:14.5px;line-height:1.55}
+  .truth code{font-family:var(--mono);font-size:.88em;background:var(--panel2);padding:1px 5px;border-radius:3px;color:var(--ink)}
+
+  /* ---------- TRACK MAP ---------- */
+  .map{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:32px 28px;margin:18px 0 26px}
+  .map h3{margin-top:0;margin-bottom:16px;font-size:20px;color:var(--ink)}
+  .lane{margin:18px 0}
+  .lane-name{font-family:var(--mono);font-size:11.5px;color:var(--faint);letter-spacing:.05em;text-transform:uppercase;margin-bottom:10px}
+  .lane-name b{color:var(--yellow);font-weight:500}
+  .nodes{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+  .node{display:flex;flex-direction:column;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px 12px;min-width:96px;text-decoration:none;color:var(--ink);transition:border-color .15s,transform .15s}
+  .node:hover{border-color:var(--yellow);transform:translateY(-1px);text-decoration:none}
+  .node .nn{font-family:var(--mono);font-size:10.5px;color:var(--yellow);font-weight:600}
+  .node .nt{font-size:12.5px;color:var(--ink);margin-top:2px;line-height:1.25}
+  .arrow{color:var(--faint);font-family:var(--mono);font-size:14px;padding:0 2px;align-self:center}
+
+  /* ---------- EXERCISE BLOCKS ---------- */
+  .ex{display:grid;grid-template-columns:auto 1fr;gap:18px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:20px 22px;margin:12px 0;align-items:start}
+  .ex-num{font-family:var(--mono);font-size:13px;color:var(--yellow);font-weight:600;background:var(--panel2);padding:6px 12px;border-radius:6px;min-width:54px;text-align:center;align-self:center}
+  .ex-body{}
+  .ex-body h4{margin:0 0 4px;font-family:var(--disp);font-size:17px;font-weight:600;color:var(--ink)}
+  .ex-body h4 a{color:var(--ink);text-decoration:none}.ex-body h4 a:hover{color:var(--yellow)}
+  .ex-tag{display:inline-block;font-family:var(--mono);font-size:10.5px;color:var(--read);background:var(--panel2);padding:2px 8px;border-radius:999px;margin-left:8px;letter-spacing:.04em;text-transform:uppercase;vertical-align:1px}
+  .ex-tag.expert{color:var(--danger)}.ex-tag.integ{color:var(--ok)}.ex-tag.domain{color:#d99cff}
+  .ex-body p{color:var(--dim);font-size:14.5px;line-height:1.55;margin:6px 0}
+  .ex-body p.why{color:var(--ink);font-size:14px;margin-top:8px}
+  .ex-body p.why b{color:var(--yellow);font-weight:600}
+  .ex-body code{font-family:var(--mono);font-size:.85em;color:var(--ink);background:var(--panel2);padding:1px 5px;border-radius:3px}
+
+  /* ---------- RECOMMENDED PATHS ---------- */
+  .paths{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin:18px 0}
+  .path{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:20px}
+  .path h4{font-family:var(--disp);font-size:16px;margin:0 0 10px;color:var(--ink)}
+  .path-steps{list-style:none;padding:0;margin:0;color:var(--dim);font-size:14px;line-height:1.7}
+  .path-steps li{padding:4px 0;border-bottom:1px solid var(--line)}
+  .path-steps li:last-child{border:none}
+  .path-steps a{color:var(--yellow)}
+  .path-steps .pn{font-family:var(--mono);font-size:11px;color:var(--faint);margin-right:6px}
+
+  /* ---------- CHECKLIST ---------- */
+  .checks{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin:18px 0}
+  .check{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px 22px}
+  .check h4{font-family:var(--disp);font-size:15px;font-weight:600;color:var(--ink);margin:0 0 12px;text-transform:uppercase;letter-spacing:.04em;font-size:12.5px;font-family:var(--mono);color:var(--yellow)}
+  .check ul{list-style:none;padding:0;margin:0}
+  .check li{color:var(--dim);font-size:14px;line-height:1.6;padding:5px 0 5px 22px;position:relative}
+  .check li::before{content:'☐';position:absolute;left:0;color:var(--faint)}
+  .check li b{color:var(--ink);font-weight:600}
+  .check li code{font-family:var(--mono);font-size:.85em;background:var(--panel2);padding:1px 5px;border-radius:3px;color:var(--ink)}
+
+  .quote{border-left:3px solid var(--yellow);padding:8px 0 8px 18px;color:var(--ink);max-width:720px;margin:16px 0;font-size:17px;line-height:1.55}
+  .quote b{color:var(--yellow)}
+
+  footer{margin-top:80px;padding-top:24px;border-top:1px solid var(--line);font-family:var(--mono);font-size:13px;color:var(--faint)}
+
+  @media(max-width:640px){
+    .ex{grid-template-columns:1fr}
+    .ex-num{justify-self:start}
+  }
+</style>
+</head>
+<body>
+<main>
+
+<!-- ============ HERO ============ -->
+<header>
+  <div class="crumb"><a href="README.md">clickhouse-playground</a> / <b>overview</b></div>
+  <h1>How <span class="y">ClickHouse</span> works.<br>And how to use this lab to learn it.</h1>
+  <p class="hero-lede">
+    Twenty-one exercises. Two tracks. One mental model. By the end you'll be able to <b>look at a Grafana dashboard, predict its query plan, and tell which knob to turn before you turn it</b> — which is the only definition of "knowing a database" that matters in production.
+  </p>
+  <div class="pill-row">
+    <span class="pill"><b>22</b> lab exercises</span>
+    <span class="pill"><b>4</b> playground exercises</span>
+    <span class="pill"><b>5</b> cluster exercises</span>
+    <span class="pill"><b>2</b> Grafana dashboards</span>
+    <span class="pill"><b>1</b> compose stack</span>
+    <span class="pill">Runs on <b>Colima</b> / 4 GB (+2 GB for cluster)</span>
+  </div>
+</header>
+
+<!-- ============ WHAT IT IS ============ -->
+<section>
+  <div class="eyebrow"><b>0</b> · What ClickHouse actually is</div>
+  <h2>A columnar database that turned compression and sparse indexing into a religion.</h2>
+  <p class="prose">
+    ClickHouse stores each column in its own compressed file. When you query, it touches only the columns you asked about — not the rows, not the table, just the columns. On top of that it never finds a row directly: it has a <b>sparse</b> primary index that lets it <b>skip blocks of 8192 rows</b>, then reads the rest. That's the whole magic trick, and it's why a single laptop-sized box handles workloads that look like they need a cluster.
+  </p>
+  <p class="prose">
+    The catch is that this only works if you set things up so the engine <i>can</i> skip. Get <code>ORDER BY</code> wrong and it scans everything. Insert one row at a time and merges drown. Read raw data when you should be reading a rollup and you pay for the same scan a million times. <b>This course is the exhaustive list of those skips, and the conditions under which they fire.</b>
+  </p>
+  <div class="quote">
+    <b>Working definition.</b> An expert isn't someone who knows every setting — it's someone who can look at a query and immediately picture which columns get read, which granules get pruned, and which cache gets touched. Get the picture right; the settings follow.
+  </div>
+</section>
+
+<!-- ============ THE THREE TRUTHS ============ -->
+<section>
+  <div class="eyebrow"><b>1</b> · The mental model in 60 seconds</div>
+  <h2>Three truths drive ~90% of all ClickHouse optimization.</h2>
+  <p class="prose">If you internalize these three sentences and nothing else, you've got the foundation every later exercise builds on.</p>
+
+  <div class="truths">
+    <div class="truth">
+      <span class="n">TRUTH 1</span>
+      <h4>Columns are files.</h4>
+      <p>Narrow types and good compression mean less I/O, smaller CPU caches, faster everything. A <code>UInt16</code> beats a <code>UInt64</code> before any optimization. A <code>LowCardinality(String)</code> shrinks a country column 10×. Codecs (Delta, Gorilla, T64) exploit the <i>shape</i> of your data before ZSTD even runs.</p>
+    </div>
+    <div class="truth">
+      <span class="n">TRUTH 2</span>
+      <h4>The index is sparse.</h4>
+      <p>ClickHouse never finds a row — it <b>skips granules</b> of 8192 rows using the <code>ORDER BY</code> tuple. If your dominant query filters by <code>site_id</code> and you sorted by <code>user_id</code>, the index skips nothing and you scan 20M rows. Get this right and you scan thousands.</p>
+    </div>
+    <div class="truth">
+      <span class="n">TRUTH 3</span>
+      <h4>Every INSERT makes a part.</h4>
+      <p>Parts are immutable directories on disk. Background merges combine them. Insert one row at a time, faster than merges can keep up, and you hit the famous <code>Too many parts</code> error. Either batch on the client or turn on <code>async_insert=1</code> so the server batches for you.</p>
+    </div>
+  </div>
+
+  <h3>The picture</h3>
+  <pre class="diagram"><span class="i">table</span>
+ ├── part_2026_06_1_1_0/        <span class="b">← immutable directory, one per INSERT (until merged)</span>
+ │     ├── site_id.bin          <span class="b">← each COLUMN is its own compressed file</span>
+ │     ├── event_time.bin
+ │     ├── ...
+ │     └── primary.idx          <span class="b">← SPARSE index: one entry per 8192 rows ("granule")</span>
+ ├── part_2026_06_2_2_0/
+ └── ...                        background merges combine parts forever
+
+
+query:  WHERE site_id = <span class="y">42</span> AND event_time > now() - 7d
+
+<span class="g">ORDER BY (site_id, event_time)</span>         <span class="r">ORDER BY user_id</span>
+┌──┬──┬<span class="y">██</span>┬<span class="y">██</span>┬──┬──┬──┬──┐              ┌<span class="y">██</span>┬<span class="y">██</span>┬<span class="y">██</span>┬<span class="y">██</span>┬<span class="y">██</span>┬<span class="y">██</span>┬<span class="y">██</span>┬<span class="y">██</span>┐
+└──┴──┴──┴──┴──┴──┴──┴──┘              └──┴──┴──┴──┴──┴──┴──┴──┘
+ <span class="g">reads 2 granules</span>                       <span class="r">reads all granules</span></pre>
+
+  <p class="prose">
+    Every optimization you'll learn — codecs, dictionaries, materialized views, projections, the query cache, the Null engine, ASOF JOIN — is a way to <b>read fewer columns</b>, <b>skip more granules</b>, or <b>avoid the work of merging</b>. Everything else is detail.
+  </p>
+</section>
+
+<!-- ============ THE TRACK MAP ============ -->
+<section>
+  <div class="eyebrow"><b>2</b> · The map</div>
+  <h2>Two tracks, sharing one stack.</h2>
+  <p class="prose">
+    The <b>lab</b> teaches the engine with synthetic web events you can stress at will. The <b>playground</b> applies the same lessons against a local replica of a real production schema — energy-dispatch data, <code>ReplacingMergeTree</code>, the <code>SELECT FINAL</code> hotspot that drives every dashboard slow. Both live in one repo, one ClickHouse container, one Grafana.
+  </p>
+
+  <div class="map">
+    <h3>Suggested path</h3>
+
+    <div class="lane">
+      <div class="lane-name"><b>Lab</b> · Fundamentals — the schema and dataflow that drive ~90% of performance</div>
+      <div class="nodes">
+        <a class="node" href="lab/docs/exercises/01_order_by.html"><span class="nn">01</span><span class="nt">ORDER BY</span></a>
+        <span class="arrow">→</span>
+        <a class="node" href="lab/docs/exercises/02_types_and_codecs.html"><span class="nn">02</span><span class="nt">Types / codecs</span></a>
+        <span class="arrow">→</span>
+        <a class="node" href="lab/docs/exercises/03_async_inserts.html"><span class="nn">03</span><span class="nt">Async inserts</span></a>
+        <span class="arrow">→</span>
+        <a class="node" href="lab/docs/exercises/04_dictionaries.html"><span class="nn">04</span><span class="nt">Dictionaries</span></a>
+        <span class="arrow">→</span>
+        <a class="node" href="lab/docs/exercises/05_materialized_views.html"><span class="nn">05</span><span class="nt">MVs</span></a>
+        <span class="arrow">→</span>
+        <a class="node" href="lab/docs/exercises/06_query_tuning.html"><span class="nn">06</span><span class="nt">Query tuning</span></a>
+        <span class="arrow">→</span>
+        <a class="node" href="lab/docs/exercises/07_ttl_and_cost.html"><span class="nn">07</span><span class="nt">TTL + cost</span></a>
+      </div>
+    </div>
+
+    <div class="lane">
+      <div class="lane-name"><b>Lab</b> · Expert — what the engine looks like under stress</div>
+      <div class="nodes">
+        <a class="node" href="lab/docs/exercises/10_engine_anatomy.html"><span class="nn">10</span><span class="nt">Engine anatomy</span></a>
+        <span class="arrow">→</span>
+        <a class="node" href="lab/docs/exercises/11_merge_machine.html"><span class="nn">11</span><span class="nt">Merge machine</span></a>
+        <span class="arrow">→</span>
+        <a class="node" href="lab/docs/exercises/12_ingestion_warfare.html"><span class="nn">12</span><span class="nt">Ingestion warfare</span></a>
+        <span class="arrow">→</span>
+        <a class="node" href="lab/docs/exercises/13_read_warfare.html"><span class="nn">13</span><span class="nt">Read warfare</span></a>
+        <span class="arrow">→</span>
+        <a class="node" href="lab/docs/exercises/14_isolation.html"><span class="nn">14</span><span class="nt">Isolation</span></a>
+      </div>
+    </div>
+
+    <div class="lane">
+      <div class="lane-name"><b>Lab</b> · Integrations — every external system is just a table</div>
+      <div class="nodes">
+        <a class="node" href="lab/docs/exercises/20_pull_anything.html"><span class="nn">20</span><span class="nt">Pull anything</span></a>
+        <span class="arrow">→</span>
+        <a class="node" href="lab/docs/exercises/21_kafka_pipeline.html"><span class="nn">21</span><span class="nt">Kafka pipeline</span></a>
+        <span class="arrow">→</span>
+        <a class="node" href="lab/docs/exercises/22_postgres_sync.html"><span class="nn">22</span><span class="nt">Postgres sync</span></a>
+      </div>
+    </div>
+
+    <div class="lane">
+      <div class="lane-name"><b>Lab</b> · Domain — finance / ML, where CH is world-class</div>
+      <div class="nodes">
+        <a class="node" href="lab/docs/exercises/30_tick_store.html"><span class="nn">30</span><span class="nt">Tick store</span></a>
+        <span class="arrow">→</span>
+        <a class="node" href="lab/docs/exercises/31_ml_features.html"><span class="nn">31</span><span class="nt">ML features</span></a>
+      </div>
+    </div>
+
+    <div class="lane">
+      <div class="lane-name"><b>Lab</b> · Cluster — 2 nodes + Keeper, what changes at scale (needs <code style="color:var(--yellow)">make up-cluster</code>)</div>
+      <div class="nodes">
+        <a class="node" href="lab/docs/exercises/40_cluster_setup.html"><span class="nn">40</span><span class="nt">Cluster setup</span></a>
+        <span class="arrow">→</span>
+        <a class="node" href="lab/docs/exercises/41_replicated_merge_tree.html"><span class="nn">41</span><span class="nt">Replicated MT</span></a>
+        <span class="arrow">→</span>
+        <a class="node" href="lab/docs/exercises/42_distributed_sharding.html"><span class="nn">42</span><span class="nt">Distributed / sharding</span></a>
+        <span class="arrow">→</span>
+        <a class="node" href="lab/docs/exercises/44_observability.html"><span class="nn">44</span><span class="nt">Cluster observability</span></a>
+        <span class="arrow">→</span>
+        <a class="node" href="lab/docs/exercises/45_sharded_final.html"><span class="nn">45</span><span class="nt">Sharded FINAL broken</span></a>
+      </div>
+    </div>
+
+    <div class="lane">
+      <div class="lane-name"><b>Playground</b> · Apply it to a real production schema</div>
+      <div class="nodes">
+        <a class="node" href="playground/docs/01_understand_final.html"><span class="nn">01</span><span class="nt">Diagnose FINAL</span></a>
+        <span class="arrow">→</span>
+        <a class="node" href="playground/docs/02_create_dictionaries.html"><span class="nn">02</span><span class="nt">Create dicts</span></a>
+        <span class="arrow">→</span>
+        <a class="node" href="playground/docs/03_rewrite_with_dictionaries.html"><span class="nn">03</span><span class="nt">Rewrite with dictGet</span></a>
+        <span class="arrow">→</span>
+        <a class="node" href="playground/docs/04_benchmark.html"><span class="nn">04</span><span class="nt">Benchmark</span></a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ WHY EACH EXERCISE ============ -->
+<section>
+  <div class="eyebrow"><b>3</b> · Why each exercise exists</div>
+  <h2>What you'll be able to do after each one.</h2>
+  <p class="prose">Each entry below: <b>what you'll learn</b> and the concrete capability it gives you. If you skip an exercise, this is the capability you don't have.</p>
+
+  <h3>Lab fundamentals — the bedrock</h3>
+
+  <div class="ex"><div class="ex-num">01</div><div class="ex-body">
+    <h4><a href="lab/docs/exercises/01_order_by.html">ORDER BY — the biggest single win</a></h4>
+    <p>Two tables, 20M rows each, identical query — 100× difference in elapsed time. You'll see the granule-pruning mechanism for the first time.</p>
+    <p class="why"><b>After this:</b> when you design a table, you'll know which column goes first in <code>ORDER BY</code> and why time usually goes last.</p>
+  </div></div>
+
+  <div class="ex"><div class="ex-num">02</div><div class="ex-body">
+    <h4><a href="lab/docs/exercises/02_types_and_codecs.html">Types, LowCardinality, codecs</a></h4>
+    <p>Compare per-column compression for the two tables from 01. Build a third variant that beats both.</p>
+    <p class="why"><b>After this:</b> you'll pick <code>UInt16</code> over <code>UInt64</code> by reflex and know which codec to layer in front of ZSTD for timestamps, gauges, and small ints.</p>
+  </div></div>
+
+  <div class="ex"><div class="ex-num">03</div><div class="ex-body">
+    <h4><a href="lab/docs/exercises/03_async_inserts.html">Async inserts</a> — the parts war</h4>
+    <p>Run <code>make storm-sync</code>, watch Active parts climb to <code>Too many parts</code>. Run <code>make storm-async</code>, watch parts stay flat. Same 2000 rows, ~2000× fewer parts.</p>
+    <p class="why"><b>After this:</b> you'll never deploy a producer that does single-row INSERTs without async_insert, and you'll know exactly which setting to flip.</p>
+  </div></div>
+
+  <div class="ex"><div class="ex-num">04</div><div class="ex-body">
+    <h4><a href="lab/docs/exercises/04_dictionaries.html">Dictionaries</a></h4>
+    <p>500-row dimension table, 20M-row fact table. JOIN vs <code>dictGet</code>: typically 3–10× faster, less memory.</p>
+    <p class="why"><b>After this:</b> you'll stop reaching for JOIN when a dimension is RAM-sized and slowly changing. You'll know <code>HASHED</code> vs <code>COMPLEX_KEY_HASHED</code> vs <code>CACHE</code>.</p>
+  </div></div>
+
+  <div class="ex"><div class="ex-num">05</div><div class="ex-body">
+    <h4><a href="lab/docs/exercises/05_materialized_views.html">Materialized views</a> — cheap real-time</h4>
+    <p>MV is an INSERT trigger, not a cached query. Pay aggregation once at write time, then dashboards read pre-rolled rows.</p>
+    <p class="why"><b>After this:</b> you'll understand the entire near-real-time stack: <i>async inserts → MV → tiny rollup reads</i>. This is the architecture, not a feature.</p>
+  </div></div>
+
+  <div class="ex"><div class="ex-num">06</div><div class="ex-body">
+    <h4><a href="lab/docs/exercises/06_query_tuning.html">Query tuning</a> — PREWHERE, skip indexes, projections</h4>
+    <p>The three reversible knobs that fix queries the ORDER BY can't satisfy. Plus <code>EXPLAIN</code> in five flavors.</p>
+    <p class="why"><b>After this:</b> when "my second access pattern is slow," you'll know whether to add a skip index, a projection, or build a second table via MV.</p>
+  </div></div>
+
+  <div class="ex"><div class="ex-num">07</div><div class="ex-body">
+    <h4><a href="lab/docs/exercises/07_ttl_and_cost.html">TTL + rollups</a> — the fixed-box doctrine</h4>
+    <p>Why a single well-sized server has a known worst case — which is the thing autoscaling charges you to avoid knowing.</p>
+    <p class="why"><b>After this:</b> you'll set TTLs by reflex, treat raw data as a debugging buffer, and put rollups behind the query cache.</p>
+  </div></div>
+
+  <h3>Lab expert — what the engine looks like under stress</h3>
+
+  <div class="ex"><div class="ex-num">10</div><div class="ex-body">
+    <h4><a href="lab/docs/exercises/10_engine_anatomy.html">Engine anatomy</a> <span class="ex-tag expert">expert</span></h4>
+    <p>Parts on disk, granules, ProfileEvents, sampling profiler. Read your own C++ stacks in SQL.</p>
+    <p class="why"><b>After this:</b> "ClickHouse is fast" stops being magic and becomes predictable. <code>system.events</code> + <code>ProfileEvents</code> are your superpower.</p>
+  </div></div>
+
+  <div class="ex"><div class="ex-num">11</div><div class="ex-body">
+    <h4><a href="lab/docs/exercises/11_merge_machine.html">The merge machine</a> <span class="ex-tag expert">expert</span></h4>
+    <p>Freeze merges with <code>SYSTEM STOP MERGES</code>, watch the disease, release, observe the avalanche cleanup. Plus partition surgery (instant) and mutations (slow).</p>
+    <p class="why"><b>After this:</b> "Too many parts" stops scaring you. You diagnose merge starvation in one query and know whether to add merge threads, fix inserts, or both.</p>
+  </div></div>
+
+  <div class="ex"><div class="ex-num">12</div><div class="ex-body">
+    <h4><a href="lab/docs/exercises/12_ingestion_warfare.html">Ingestion warfare</a> <span class="ex-tag expert">expert</span></h4>
+    <p>The throughput ladder (VALUES vs JSONEachRow vs Native vs INSERT SELECT) — your hardware's actual rows/sec ceiling. Plus the <code>Null</code> engine (swallow infinitely, store nothing, MVs still fire).</p>
+    <p class="why"><b>After this:</b> you'll know your box's ceiling and how to design pipelines around it instead of fighting it.</p>
+  </div></div>
+
+  <div class="ex"><div class="ex-num">13</div><div class="ex-body">
+    <h4><a href="lab/docs/exercises/13_read_warfare.html">Read warfare</a> <span class="ex-tag expert">expert</span></h4>
+    <p>Three caches you control. In-order aggregation that never builds a hash table. Sampling. Three ways to dodge FINAL. Aggregate projections — the rollup hidden inside the table.</p>
+    <p class="why"><b>After this:</b> every Grafana dashboard you've ever loaded slowly is fixable from this exercise. The query cache alone is worth the read.</p>
+  </div></div>
+
+  <div class="ex"><div class="ex-num">14</div><div class="ex-body">
+    <h4><a href="lab/docs/exercises/14_isolation.html">Isolation</a> <span class="ex-tag expert">expert</span></h4>
+    <p>Memory ceilings per role, quotas, priorities, the kill switch. The four-line doctrine for keeping a fixed box healthy.</p>
+    <p class="why"><b>After this:</b> one analyst can't OOM your ingestion. Worst case becomes known instead of catastrophic.</p>
+  </div></div>
+
+  <h3>Lab integrations — every external system is just a table</h3>
+
+  <div class="ex"><div class="ex-num">20</div><div class="ex-body">
+    <h4><a href="lab/docs/exercises/20_pull_anything.html">Pull anything</a> <span class="ex-tag integ">integration</span></h4>
+    <p>URL, S3, file, Postgres, MySQL, remote ClickHouse — all are table functions. Schema inferred. Aggregation pushed down. Plus <code>clickhouse-local</code>, the engine without a server.</p>
+    <p class="why"><b>After this:</b> "build a connector" stops appearing on your roadmap. Integration is a FROM clause.</p>
+  </div></div>
+
+  <div class="ex"><div class="ex-num">21</div><div class="ex-body">
+    <h4><a href="lab/docs/exercises/21_kafka_pipeline.html">Kafka pipeline</a> <span class="ex-tag integ">integration</span></h4>
+    <p>Three CREATE statements: Kafka engine + MV pump + MergeTree. No separate consumer process.</p>
+    <p class="why"><b>After this:</b> "streaming pipeline" stops being a project. The MV is your transformation layer in SQL.</p>
+  </div></div>
+
+  <div class="ex"><div class="ex-num">22</div><div class="ex-body">
+    <h4><a href="lab/docs/exercises/22_postgres_sync.html">Postgres sync</a> <span class="ex-tag integ">integration</span></h4>
+    <p>Four escalating patterns: live query, dictionary cache, refreshable MV, full CDC. Pick what your latency budget allows.</p>
+    <p class="why"><b>After this:</b> you can wire OLTP-to-analytics in minutes instead of standing up an ELT framework.</p>
+  </div></div>
+
+  <h3>Lab domain — where ClickHouse happens to be world-class</h3>
+
+  <div class="ex"><div class="ex-num">30</div><div class="ex-body">
+    <h4><a href="lab/docs/exercises/30_tick_store.html">Tick store</a> <span class="ex-tag domain">domain</span></h4>
+    <p>Codecs were made for finance numbers. OHLCV bars as MV chains. <code>ASOF JOIN</code> — the killer feature that justified finance adopting CH.</p>
+    <p class="why"><b>After this:</b> you'll understand why quant shops run their tick stores on this engine, and you'll be able to align multi-source feeds in one SQL statement.</p>
+  </div></div>
+
+  <div class="ex"><div class="ex-num">31</div><div class="ex-body">
+    <h4><a href="lab/docs/exercises/31_ml_features.html">ML features</a> <span class="ex-tag domain">domain</span></h4>
+    <p>Window functions for momentum/vol/z-score. Hash-based train/test split. Parquet export. Even an in-database SGD baseline as an honesty check.</p>
+    <p class="why"><b>After this:</b> ClickHouse becomes your feature factory; Python/GPU does what it's good at (training). Feature logic lives in one place: SQL.</p>
+  </div></div>
+
+  <h3>Playground — apply it to a real production schema</h3>
+
+  <div class="ex"><div class="ex-num">P-01</div><div class="ex-body">
+    <h4><a href="playground/docs/01_understand_final.html">Understand the FINAL hotspot</a></h4>
+    <p>All 982 production <code>read.*</code> views are <code>SELECT * FROM ... FINAL</code>. Measure the tax in ms, MB, and rows-read. Get the hit list of FINAL-heavy tables.</p>
+    <p class="why"><b>After this:</b> you have receipts for the refactor PR. You know which tables are worth attacking.</p>
+  </div></div>
+
+  <div class="ex"><div class="ex-num">P-02</div><div class="ex-body">
+    <h4><a href="playground/docs/02_create_dictionaries.html">Create dictionaries</a> — for the §4a candidates</h4>
+    <p>Three dictionaries on the small reference tables. Simple key + composite key examples.</p>
+    <p class="why"><b>After this:</b> you've practiced both <code>HASHED</code> and <code>COMPLEX_KEY_HASHED</code> on a real schema. Total RAM cost: tens of KB.</p>
+  </div></div>
+
+  <div class="ex"><div class="ex-num">P-03</div><div class="ex-body">
+    <h4><a href="playground/docs/03_rewrite_with_dictionaries.html">Rewrite with dictGet</a></h4>
+    <p>Mechanical before/after rewrites. Replace a derived view so 20 downstream consumers get faster at once.</p>
+    <p class="why"><b>After this:</b> you've practiced the highest-leverage refactor — replacing views, not queries.</p>
+  </div></div>
+
+  <div class="ex"><div class="ex-num">P-04</div><div class="ex-body">
+    <h4><a href="playground/docs/04_benchmark.html">Benchmark</a></h4>
+    <p>Side-by-side with labels, then one query against <code>system.query_log</code> for ms, MB, rows-read. The receipts.</p>
+    <p class="why"><b>After this:</b> you can prove the refactor with numbers, not vibes.</p>
+  </div></div>
+</section>
+
+<!-- ============ RECOMMENDED PATHS ============ -->
+<section>
+  <div class="eyebrow"><b>4</b> · Recommended paths</div>
+  <h2>"I want to…"</h2>
+  <p class="prose">Don't have time for all 21? Pick a path by intent.</p>
+
+  <div class="paths">
+    <div class="path">
+      <h4>…understand ClickHouse from scratch</h4>
+      <ol class="path-steps">
+        <li><span class="pn">→</span> <a href="lab/docs/exercises/01_order_by.html">01 ORDER BY</a></li>
+        <li><span class="pn">→</span> <a href="lab/docs/exercises/02_types_and_codecs.html">02 Types &amp; codecs</a></li>
+        <li><span class="pn">→</span> <a href="lab/docs/exercises/03_async_inserts.html">03 Async inserts</a></li>
+        <li><span class="pn">→</span> <a href="lab/docs/exercises/05_materialized_views.html">05 MVs</a></li>
+        <li><span class="pn">→</span> <a href="lab/docs/exercises/07_ttl_and_cost.html">07 TTL + cost</a></li>
+      </ol>
+    </div>
+
+    <div class="path">
+      <h4>…make our dashboards faster, today</h4>
+      <ol class="path-steps">
+        <li><span class="pn">→</span> <a href="lab/docs/exercises/13_read_warfare.html">13 Read warfare</a> (query cache!)</li>
+        <li><span class="pn">→</span> <a href="lab/docs/exercises/04_dictionaries.html">04 Dictionaries</a></li>
+        <li><span class="pn">→</span> <a href="lab/docs/exercises/06_query_tuning.html">06 Query tuning</a></li>
+        <li><span class="pn">→</span> <a href="lab/docs/exercises/05_materialized_views.html">05 MVs (pre-roll dashboards)</a></li>
+      </ol>
+    </div>
+
+    <div class="path">
+      <h4>…stop the 3am "Too many parts" pages</h4>
+      <ol class="path-steps">
+        <li><span class="pn">→</span> <a href="lab/docs/exercises/03_async_inserts.html">03 Async inserts</a></li>
+        <li><span class="pn">→</span> <a href="lab/docs/exercises/11_merge_machine.html">11 Merge machine</a></li>
+        <li><span class="pn">→</span> <a href="lab/docs/exercises/12_ingestion_warfare.html">12 Ingestion warfare</a></li>
+        <li><span class="pn">→</span> <a href="lab/docs/exercises/14_isolation.html">14 Isolation</a></li>
+      </ol>
+    </div>
+
+    <div class="path">
+      <h4>…retire the SELECT FINAL hotspot</h4>
+      <ol class="path-steps">
+        <li><span class="pn">→</span> <a href="playground/docs/01_understand_final.html">P-01 Diagnose FINAL</a></li>
+        <li><span class="pn">→</span> <a href="lab/docs/exercises/04_dictionaries.html">04 Dictionaries (foundation)</a></li>
+        <li><span class="pn">→</span> <a href="playground/docs/02_create_dictionaries.html">P-02 Create dicts</a></li>
+        <li><span class="pn">→</span> <a href="playground/docs/03_rewrite_with_dictionaries.html">P-03 Rewrite with dictGet</a></li>
+        <li><span class="pn">→</span> <a href="playground/docs/04_benchmark.html">P-04 Benchmark</a></li>
+        <li><span class="pn">→</span> <a href="lab/docs/exercises/13_read_warfare.html">13 Read warfare (argMax pattern)</a></li>
+      </ol>
+    </div>
+
+    <div class="path">
+      <h4>…wire ClickHouse into Postgres / Kafka</h4>
+      <ol class="path-steps">
+        <li><span class="pn">→</span> <a href="lab/docs/exercises/04_dictionaries.html">04 Dictionaries (concept)</a></li>
+        <li><span class="pn">→</span> <a href="lab/docs/exercises/20_pull_anything.html">20 Pull anything</a></li>
+        <li><span class="pn">→</span> <a href="lab/docs/exercises/22_postgres_sync.html">22 Postgres sync</a></li>
+        <li><span class="pn">→</span> <a href="lab/docs/exercises/21_kafka_pipeline.html">21 Kafka pipeline</a></li>
+      </ol>
+    </div>
+
+    <div class="path">
+      <h4>…build a tick store / feature factory</h4>
+      <ol class="path-steps">
+        <li><span class="pn">→</span> <a href="lab/docs/exercises/02_types_and_codecs.html">02 Codecs (Gorilla, DoubleDelta)</a></li>
+        <li><span class="pn">→</span> <a href="lab/docs/exercises/05_materialized_views.html">05 MVs (OHLCV preview)</a></li>
+        <li><span class="pn">→</span> <a href="lab/docs/exercises/30_tick_store.html">30 Tick store</a></li>
+        <li><span class="pn">→</span> <a href="lab/docs/exercises/31_ml_features.html">31 ML features</a></li>
+      </ol>
+    </div>
+
+    <div class="path">
+      <h4>…run / debug a real cluster</h4>
+      <ol class="path-steps">
+        <li><span class="pn">→</span> <a href="lab/docs/exercises/40_cluster_setup.html">40 Cluster setup (ON CLUSTER, Keeper)</a></li>
+        <li><span class="pn">→</span> <a href="lab/docs/exercises/41_replicated_merge_tree.html">41 ReplicatedMergeTree</a></li>
+        <li><span class="pn">→</span> <a href="lab/docs/exercises/42_distributed_sharding.html">42 Distributed + sharding</a></li>
+        <li><span class="pn">→</span> <a href="lab/docs/exercises/44_observability.html">44 clusterAllReplicas observability</a></li>
+        <li><span class="pn">→</span> <a href="lab/docs/exercises/45_sharded_final.html">45 Sharded FINAL is broken</a></li>
+      </ol>
+    </div>
+  </div>
+</section>
+
+<!-- ============ THE PRO CHECKLIST ============ -->
+<section>
+  <div class="eyebrow"><b>5</b> · The pro checklist</div>
+  <h2>What "knowing ClickHouse" looks like in production.</h2>
+  <p class="prose">By the time you've worked through the relevant tracks, every item below should feel like a reflex, not a lookup.</p>
+
+  <div class="checks">
+    <div class="check">
+      <h4>Schema (decide once, pay forever)</h4>
+      <ul>
+        <li><b>ORDER BY</b> matches the dominant filter pattern, low→high cardinality</li>
+        <li><b>LowCardinality</b>, tight ints, no reflexive <code>Nullable</code></li>
+        <li>Codecs on timestamps / counters / gauges</li>
+        <li><code>PARTITION BY</code> monthly-ish, used for TTL/drops only</li>
+      </ul>
+    </div>
+
+    <div class="check">
+      <h4>Ingestion</h4>
+      <ul>
+        <li>Batched inserts <b>or</b> <code>async_insert=1</code> — never raw tiny inserts</li>
+        <li><b>Active parts</b> panel flat or sawtoothing, never climbing</li>
+        <li>MVs lean; rollups chained (raw → 1m → 1h → 1d)</li>
+      </ul>
+    </div>
+
+    <div class="check">
+      <h4>Queries</h4>
+      <ul>
+        <li>Dashboards read <b>rollups</b>, never raw</li>
+        <li>Dimensions via <b>dictionaries</b>, not JOINs</li>
+        <li><code>EXPLAIN indexes=1</code> shows real granule pruning</li>
+        <li>No <code>SELECT *</code> on wide tables</li>
+        <li><b>Query cache</b> on dashboard queries</li>
+      </ul>
+    </div>
+
+    <div class="check">
+      <h4>Cost / safety</h4>
+      <ul>
+        <li>TTL on raw data; recompress/tier old parts</li>
+        <li>Memory limits + quotas instead of autoscaling</li>
+        <li><code>system.query_log</code> reviewed for the top offenders weekly</li>
+        <li>Ingestion path has reserved capacity (threads, memory)</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ============ HOW TO USE THIS REPO ============ -->
+<section>
+  <div class="eyebrow"><b>6</b> · How to actually use this repo</div>
+  <h2>The runtime side of "learning ClickHouse".</h2>
+
+  <pre class="diagram"><span class="b"># One-time setup</span>
+brew install colima docker docker-compose
+colima start --cpu 4 --memory 8 --disk 40
+
+<span class="b"># Spin up the stack</span>
+make up                 <span class="i"># ClickHouse + Grafana</span>
+make seed               <span class="i"># lab dataset: 20M events</span>
+make playground-seed    <span class="i"># prod-replica dataset: ~750k rows</span>
+
+<span class="b"># The four browser tabs you want open</span>
+http://localhost:8123/play   <span class="i"># admin / admin — your SQL terminal</span>
+http://localhost:3000        <span class="i"># Grafana — admin / admin</span>
+<span class="i">file://.../lab/docs/exercises/index.html</span>   <span class="i"># lab walkthroughs</span>
+<span class="i">file://.../playground/docs/index.html</span>      <span class="i"># playground walkthroughs</span>
+
+<span class="b"># Optional: Kafka + Postgres for exercises 20-22</span>
+make up-integrations
+
+<span class="b"># Optional: 2-node cluster + Keeper for exercises 40-45</span>
+make up-cluster
+make cluster-status   <span class="i"># confirms wiring</span>
+make sql-1            <span class="i"># interactive client on ch-1</span></pre>
+
+  <p class="prose">
+    The exercises assume you have <b>Grafana on a second screen</b>. The Feedback Loop dashboard refreshes every 5 seconds. When you run <code>make storm-sync</code>, watch the Active parts panel — that's the lesson. Most exercises wire to a system table query that proves the result; the Grafana panels are the <i>visual</i> proof.
+  </p>
+
+  <div class="quote">
+    <b>The one habit to keep.</b> When you don't know why a query is slow, the answer is in <code>system.query_log</code> and <code>system.parts</code>. Open them first, hypothesize second. Every expert tool in this lab is downstream of that habit.
+  </div>
+</section>
+
+<footer>overview.html · part of clickhouse-playground · lab + playground</footer>
+
+</main>
+</body>
+</html>

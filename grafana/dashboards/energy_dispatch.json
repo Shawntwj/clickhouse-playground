@@ -30,7 +30,7 @@
           "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse_uid" },
           "rawSql": "SELECT\n  toStartOfHour(interval_utc) AS time,\n  region,\n  avg(value_mw) AS avg_dispatch_mw\nFROM read.hkpug5ii1l25n\nWHERE interval_utc >= $__fromTime AND interval_utc <= $__toTime\nGROUP BY time, region\nORDER BY time ASC",
           "refId": "A",
-          "format": "time_series"
+          "format": "AUTO"
         }
       ],
       "title": "Average Dispatch MW by Region",
@@ -104,7 +104,7 @@
           "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse_uid" },
           "rawSql": "SELECT\n  toStartOfHour(value_datetime_utc) AS time,\n  tag,\n  avg(value_decimal) AS avg_value\nFROM read.hkaggineq5gd7\nWHERE value_datetime_utc >= $__fromTime AND value_datetime_utc <= $__toTime\nGROUP BY time, tag\nORDER BY time ASC",
           "refId": "A",
-          "format": "time_series"
+          "format": "AUTO"
         }
       ],
       "title": "Tag Values Over Time",
@@ -124,7 +124,7 @@
           "datasource": { "type": "grafana-clickhouse-datasource", "uid": "clickhouse_uid" },
           "rawSql": "SELECT\n  toStartOfHour(solution_datetime_utc) AS time,\n  region_id AS region,\n  avg(rrp)          AS avg_rrp,\n  avg(totaldemand)  AS avg_demand_mw\nFROM read.fvow3t4chjeqj\nWHERE solution_datetime_utc >= $__fromTime AND solution_datetime_utc <= $__toTime\nGROUP BY time, region_id\nORDER BY time ASC",
           "refId": "A",
-          "format": "time_series"
+          "format": "AUTO"
         }
       ],
       "title": "Regional Reference Price (RRP) & Demand",

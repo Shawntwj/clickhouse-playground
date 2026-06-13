@@ -1,0 +1,28 @@
+# Integration playground: adds a Kafka-compatible broker + Postgres.
+# Start with:  make up-integrations
+#   (equivalent to: docker compose -f docker-compose.yml -f docker-compose.integrations.yml up -d)
+# Used by lab/sql/20_pull_anything.sql, 21_kafka_pipeline.sql, 22_postgres_sync.sql
+services:
+  redpanda:
+    image: redpandadata/redpanda:v24.2.4
+    container_name: redpanda
+    command:
+      - redpanda start
+      - --smp 1
+      - --memory 512M
+      - --overprovisioned
+      - --kafka-addr PLAINTEXT://0.0.0.0:9092
+      - --advertise-kafka-addr PLAINTEXT://redpanda:9092
+    ports:
+      - "9092:9092"
+
+  postgres:
+    image: postgres:16
+    container_name: pg
+    environment:
+      POSTGRES_PASSWORD: lab
+      POSTGRES_DB: app
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./lab/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql

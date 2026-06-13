@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lab 12 · Ingestion warfare — the throughput ladder</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#16181d;--panel:#1e2128;--panel2:#23262e;--line:#31353f;--ink:#e8e6df;--dim:#989ca6;--faint:#6b7078;--yellow:#f5c518;--read:#5fa8ff;--danger:#ff5d52;--ok:#5ad08a;--mono:'IBM Plex Mono',ui-monospace,monospace;--disp:'Space Grotesk',sans-serif;--body:'Inter',system-ui,sans-serif}
+  *{box-sizing:border-box;margin:0;padding:0}body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.65}main{max-width:980px;margin:0 auto;padding:0 20px 120px}a{color:var(--yellow)}::selection{background:var(--yellow);color:#16181d}
+  header{padding:64px 0 40px;border-bottom:1px solid var(--line)}.crumb{font-family:var(--mono);font-size:13px;color:var(--faint)}.crumb b{color:var(--yellow);font-weight:500}.crumb a{color:var(--faint);text-decoration:none}.crumb a:hover{color:var(--yellow)}
+  h1{font-family:var(--disp);font-weight:700;font-size:clamp(30px,5vw,46px);line-height:1.08;margin:14px 0;letter-spacing:-.02em}h1 .y{color:var(--yellow)}.lede{max-width:680px;color:var(--dim);font-size:17px}.lede b{color:var(--ink);font-weight:600}
+  .meta{display:flex;flex-wrap:wrap;gap:18px;margin-top:22px;font-family:var(--mono);font-size:12.5px;color:var(--faint)}.meta b{color:var(--ink);font-weight:500}
+  section{padding:48px 0 8px;border-bottom:1px solid var(--line)}section:last-of-type{border-bottom:none}
+  .eyebrow{font-family:var(--mono);font-size:12.5px;color:var(--faint);margin-bottom:10px;letter-spacing:.04em;text-transform:uppercase}.eyebrow b{color:var(--yellow);font-weight:500}
+  h2{font-family:var(--disp);font-weight:700;font-size:clamp(22px,3vw,28px);letter-spacing:-.01em;margin-bottom:14px}h3{font-family:var(--disp);font-weight:500;font-size:18px;margin:22px 0 8px}
+  p.prose{max-width:680px;color:var(--dim);margin-bottom:14px}p.prose b{color:var(--ink);font-weight:600}p.prose code,.inline{font-family:var(--mono);font-size:.88em;background:var(--panel2);padding:2px 6px;border-radius:4px;color:var(--ink)}
+  pre.sql,pre.shell,pre.diagram{font-family:var(--mono);font-size:13px;line-height:1.55;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:16px 18px;overflow-x:auto;margin:12px 0 14px;color:var(--ink);white-space:pre}
+  pre.shell{border-left:3px solid var(--read)}pre.sql{border-left:3px solid var(--yellow)}pre.diagram{border-left:3px solid var(--faint);color:var(--dim)}
+  pre .kw{color:var(--read)}pre .lit{color:var(--yellow)}pre .com{color:var(--faint);font-style:italic}pre .ok{color:var(--ok)}pre .bad{color:var(--danger)}
+  .step{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:20px 22px;margin:18px 0}.step-h{display:flex;flex-wrap:wrap;align-items:baseline;gap:10px;margin-bottom:6px}.step-n{font-family:var(--mono);font-size:11px;color:var(--yellow);background:var(--panel2);padding:3px 8px;border-radius:4px;font-weight:600}.step-t{font-family:var(--disp);font-size:17px;font-weight:600}
+  .expect{border-left:3px solid var(--ok);padding:6px 0 6px 14px;color:var(--dim);font-size:14.5px;margin:10px 0 0;max-width:660px}.expect b{color:var(--ink)}.expect .num{color:var(--yellow);font-family:var(--mono);font-weight:600}
+  .gotcha{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--danger);border-radius:8px;padding:14px 18px;margin:10px 0;color:var(--dim);max-width:720px}.gotcha b{color:var(--ink);font-weight:600}.gotcha .tag{font-family:var(--mono);font-size:11px;color:var(--danger);text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:4px}
+  .takeaway{border-left:3px solid var(--yellow);padding:6px 0 6px 16px;color:var(--ink);max-width:680px;margin:12px 0 0;font-size:15.5px}.takeaway b{color:var(--yellow)}
+  table{width:100%;border-collapse:collapse;font-size:14px;margin:12px 0 18px}th{font-family:var(--mono);font-size:11.5px;color:var(--faint);text-align:left;font-weight:500;padding:10px 12px;border-bottom:1px solid var(--line);text-transform:uppercase;letter-spacing:.04em}td{padding:10px 12px;border-bottom:1px solid var(--line);color:var(--dim);vertical-align:top}td code{font-family:var(--mono);font-size:.86em;color:var(--ink);background:var(--panel2);padding:2px 6px;border-radius:3px}tr td:first-child{color:var(--ink);font-weight:500}
+  .next{display:flex;flex-wrap:wrap;gap:14px;margin-top:18px}.next a{display:block;flex:1 1 280px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px 16px;text-decoration:none;color:var(--dim);transition:border-color .15s}.next a:hover{border-color:var(--yellow)}.next .nx-eyebrow{font-family:var(--mono);font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px}.next .nx-t{color:var(--ink);font-weight:600;font-size:15px}
+  footer{margin-top:60px;padding-top:24px;border-top:1px solid var(--line);font-family:var(--mono);font-size:13px;color:var(--faint)}
+</style>
+</head>
+<body><main>
+
+<header>
+  <div class="crumb"><a href="../../../README.md">clickhouse-playground</a> / <a href="../../README.md">lab</a> / <a href="index.html">exercises</a> / <b>12 · ingestion_warfare</b></div>
+  <h1>How hard can <span class="y">one box</span> swallow?</h1>
+  <p class="lede">The ingestion throughput ladder, plus two patterns most teams don't know exist: the <code>Null</code> engine (swallow infinitely, store nothing — MVs still fire) and the <code>Buffer</code> engine (RAM shock absorber for the rare cases async_insert isn't enough).</p>
+  <div class="meta">
+    <span>File · <b>lab/sql/12_ingestion_warfare.sql</b> + <b>lab/scripts/torture_ingest.sh</b></span>
+    <span>Reading · <b>~12 min</b></span>
+    <span>Level · <b>Expert</b></span>
+    <span>Prereq · <b>exercise 03 (firehose)</b></span>
+  </div>
+</header>
+
+<section>
+  <div class="eyebrow"><b>A</b> · The throughput ladder</div>
+  <h2>Cost per row, highest to lowest</h2>
+  <table>
+    <thead><tr><th>#</th><th>Format / path</th><th>Cost</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td><code>INSERT … VALUES</code> over HTTP</td><td><b>Worst</b> — SQL parsing per row</td></tr>
+      <tr><td>2</td><td><code>CSV</code> / <code>JSONEachRow</code></td><td>Text parsing, parallel-parsed</td></tr>
+      <tr><td>3</td><td><code>RowBinary</code></td><td>No text parsing</td></tr>
+      <tr><td>4</td><td><code>Native</code></td><td>Server's own block format, ~zero parsing cost</td></tr>
+      <tr><td>5</td><td><code>INSERT … SELECT</code> server-side</td><td><b>Ceiling</b> — no network, no parsing</td></tr>
+    </tbody>
+  </table>
+  <p class="prose">Run the script to see your hardware's actual numbers:</p>
+  <pre class="shell">make torture-ingest</pre>
+  <p class="expect"><code>lab/scripts/torture_ingest.sh</code> writes 10M rows through paths 1, 2, and 5, and prints rows/sec for each.</p>
+</section>
+
+<section>
+  <div class="eyebrow"><b>B</b> · The ceiling test</div>
+  <h2>Synthesize inside the server</h2>
+  <pre class="sql"><span class="kw">INSERT INTO</span> lab.firehose
+<span class="kw">SELECT</span> now() - toIntervalSecond(rand() % <span class="lit">3600</span>),
+       rand() % <span class="lit">1000000</span>, rand() % <span class="lit">500</span>,
+       [<span class="lit">'US'</span>,<span class="lit">'DE'</span>,<span class="lit">'IN'</span>][<span class="lit">1</span> + rand() % <span class="lit">3</span>],
+       [<span class="lit">'/home'</span>,<span class="lit">'/cart'</span>][<span class="lit">1</span> + rand() % <span class="lit">2</span>],
+       rand() % <span class="lit">5000</span>
+<span class="kw">FROM</span> numbers_mt(<span class="lit">50000000</span>)
+<span class="kw">SETTINGS</span> max_insert_threads = <span class="lit">4</span>, max_threads = <span class="lit">4</span>;</pre>
+  <p class="expect">
+    Note rows/sec in the client output. <b>This is your hardware's limit.</b> Everything slower than this is your pipeline's fault, not ClickHouse's.
+  </p>
+  <table>
+    <thead><tr><th>Setting</th><th>What it controls</th></tr></thead>
+    <tbody>
+      <tr><td><code>max_insert_threads</code></td><td>Parallel part writers (CPU for speed)</td></tr>
+      <tr><td><code>min_insert_block_size_rows</code></td><td>Bigger blocks = fewer, bigger parts (less merge work)</td></tr>
+      <tr><td><code>input_format_parallel_parsing</code></td><td>Text formats parse on multiple cores</td></tr>
+      <tr><td><code>insert_deduplicate</code></td><td>For Replicated tables; set to 0 if you don't need block-hash dedup</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section>
+  <div class="eyebrow"><b>C</b> · The Null engine trick</div>
+  <h2>Ingest infinitely, store nothing</h2>
+  <p class="prose">
+    <code>ENGINE = Null</code> swallows inserts and discards them — but <b>materialized views attached to it still fire</b>. So: raw stream in, only rollups stored.
+  </p>
+  <pre class="sql"><span class="kw">CREATE TABLE</span> lab.blackhole <span class="kw">AS</span> lab.firehose <span class="kw">ENGINE</span> = <span class="kw">Null</span>;
+
+<span class="kw">CREATE MATERIALIZED VIEW</span> lab.blackhole_1m_mv <span class="kw">TO</span> lab.events_1m <span class="kw">AS</span>
+<span class="kw">SELECT</span> toStartOfMinute(event_time) <span class="kw">AS</span> minute, site_id,
+       count() <span class="kw">AS</span> events, quantileState(<span class="lit">0.95</span>)(duration_ms) <span class="kw">AS</span> duration_q
+<span class="kw">FROM</span> lab.blackhole
+<span class="kw">GROUP BY</span> minute, site_id;
+
+<span class="kw">INSERT INTO</span> lab.blackhole
+<span class="kw">SELECT</span> now(), rand() % <span class="lit">1000000</span>, rand() % <span class="lit">500</span>, <span class="lit">'US'</span>, <span class="lit">'/home'</span>, rand() % <span class="lit">5000</span>
+<span class="kw">FROM</span> numbers_mt(<span class="lit">10000000</span>);
+
+<span class="kw">SELECT</span> minute, sum(events) <span class="kw">FROM</span> lab.events_1m
+<span class="kw">WHERE</span> minute >= toStartOfMinute(now()) <span class="kw">GROUP BY</span> minute;</pre>
+  <p class="expect">
+    <span class="num">10M</span> events ingested, <span class="num">~500</span> rows stored. Storage cost: effectively zero. <b>This is the extreme-volume pattern</b> — metrics, ad impressions, IoT — when you only ever need aggregates, never store the raw stream at all.
+  </p>
+  <p class="prose">Variant: Null table + several MVs = one stream fanned out to N rollups. Zero storage, zero pipeline code.</p>
+</section>
+
+<section>
+  <div class="eyebrow"><b>D</b> · The Buffer engine</div>
+  <h2>RAM shock absorber (pre-async-insert era)</h2>
+  <pre class="sql"><span class="kw">CREATE TABLE</span> lab.firehose_buffer <span class="kw">AS</span> lab.firehose
+<span class="kw">ENGINE</span> = <span class="kw">Buffer</span>(lab, firehose, <span class="lit">16</span>,
+                <span class="lit">10</span>, <span class="lit">100</span>,        <span class="com">-- min/max seconds before flush</span>
+                <span class="lit">10000</span>, <span class="lit">1000000</span>, <span class="com">-- min/max rows</span>
+                <span class="lit">1000000</span>, <span class="lit">10000000</span>); <span class="com">-- min/max bytes</span></pre>
+  <p class="prose">
+    Writes go to the buffer; RAM chunks flush to <code>lab.firehose</code> when any max threshold hits. SELECTs on the buffer see RAM + disk combined — useful when reads must see writes the same millisecond they arrive.
+  </p>
+  <p class="prose">Trade-offs vs async_insert: <b>a crash loses the buffer</b>, and no PK order in RAM. Modern default is async_insert; reach for Buffer when reads must be instant.</p>
+</section>
+
+<section>
+  <div class="eyebrow"><b>E</b> · The pattern summary</div>
+  <h2>Pick one</h2>
+  <table>
+    <thead><tr><th>Situation</th><th>Pattern</th></tr></thead>
+    <tbody>
+      <tr><td>Many tiny producers, normal scale</td><td><code>async_insert</code> → MergeTree (the default)</td></tr>
+      <tr><td>Insane volume, aggregates only</td><td><code>Null</code> table + MVs (store nothing)</td></tr>
+      <tr><td>Must read instantly + can't batch</td><td><code>Buffer</code> engine (RAM shield)</td></tr>
+      <tr><td>Bulk load / backfill</td><td><code>Native</code> format or <code>INSERT SELECT</code>, max_insert_threads up, load per partition so merges stay local</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section>
+  <div class="eyebrow"><b>F</b> · Gotchas</div>
+  <h2>What experts know</h2>
+  <div class="gotcha"><span class="tag">Trap</span>
+    <b>Buffer engine doesn't survive restarts.</b> A graceful shutdown <i>does</i> flush; a crash doesn't. Async_insert has the same crash semantics — your durability story has to be upstream.
+  </div>
+  <div class="gotcha"><span class="tag">Pattern</span>
+    <b>Null + MV fan-out scales to absurd volumes.</b> Companies pay for streaming frameworks to do less than this single ClickHouse pattern.
+  </div>
+  <div class="gotcha"><span class="tag">Trap</span>
+    <b>RowBinary is much faster than CSV but no schema in the file.</b> Producer and consumer must agree on column order. Mismatches are silent and catastrophic.
+  </div>
+</section>
+
+<section>
+  <div class="eyebrow"><b>G</b> · Next</div>
+  <div class="next">
+    <a href="13_read_warfare.html"><div class="nx-eyebrow">Lab · 13</div><div class="nx-t">Read warfare — caches, in-order, FINAL-dodging →</div></a>
+    <a href="14_isolation.html"><div class="nx-eyebrow">Lab · 14</div><div class="nx-t">Isolation — abuse-proof the box →</div></a>
+  </div>
+</section>
+
+<footer>lab/sql/12_ingestion_warfare.sql · part of clickhouse-playground</footer>
+</main></body></html>
