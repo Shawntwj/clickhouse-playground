@@ -87,7 +87,7 @@
   .ex-body h4{margin:0 0 4px;font-family:var(--disp);font-size:17px;font-weight:600;color:var(--ink)}
   .ex-body h4 a{color:var(--ink);text-decoration:none}.ex-body h4 a:hover{color:var(--yellow)}
   .ex-tag{display:inline-block;font-family:var(--mono);font-size:10.5px;color:var(--read);background:var(--panel2);padding:2px 8px;border-radius:999px;margin-left:8px;letter-spacing:.04em;text-transform:uppercase;vertical-align:1px}
-  .ex-tag.expert{color:var(--danger)}.ex-tag.integ{color:var(--ok)}.ex-tag.domain{color:#d99cff}
+  .ex-tag.expert{color:var(--danger)}.ex-tag.integ{color:var(--ok)}.ex-tag.domain{color:#d99cff}.ex-tag.cluster{color:var(--read)}
   .ex-body p{color:var(--dim);font-size:14.5px;line-height:1.55;margin:6px 0}
   .ex-body p.why{color:var(--ink);font-size:14px;margin-top:8px}
   .ex-body p.why b{color:var(--yellow);font-weight:600}
@@ -140,7 +140,7 @@
     <span class="pill"><b>5</b> cluster exercises</span>
     <span class="pill"><b>2</b> Grafana dashboards</span>
     <span class="pill"><b>1</b> compose stack</span>
-    <span class="pill">Runs on <b>Colima</b> / 4 GB (+2 GB for cluster)</span>
+    <span class="pill">Runs on <b>Docker Desktop</b> / 4 GB (+2 GB for cluster)</span>
   </div>
 </header>
 
@@ -417,6 +417,39 @@ query:  WHERE site_id = <span class="y">42</span> AND event_time > now() - 7d
     <p class="why"><b>After this:</b> ClickHouse becomes your feature factory; Python/GPU does what it's good at (training). Feature logic lives in one place: SQL.</p>
   </div></div>
 
+  <h3>Lab cluster — what changes when scale forces more than one node</h3>
+  <p class="prose">Needs <code>make up-cluster</code> (Keeper + ch-1 + ch-2, +1.5 GB RAM). Same engine as the single-node track — the mental model from §1 still rules — but coordination, sharding, and a few correctness traps appear once data lives in more than one place.</p>
+
+  <div class="ex"><div class="ex-num">40</div><div class="ex-body">
+    <h4><a href="lab/docs/exercises/40_cluster_setup.html">Cluster setup</a> <span class="ex-tag cluster">cluster</span></h4>
+    <p>Keeper as the coordination service. <code>ON CLUSTER</code> DDL via the Keeper-backed queue. Per-node macros (<code>{shard}</code>, <code>{replica}</code>). Two clusters over the same nodes: <code>cluster_1s2r</code> (replication) and <code>cluster_2s1r</code> (sharding).</p>
+    <p class="why"><b>After this:</b> you can stand up, inspect, and tear down a real ClickHouse cluster. The vocabulary (Keeper, ON CLUSTER, macros, distributed_ddl_queue) stops being mysterious.</p>
+  </div></div>
+
+  <div class="ex"><div class="ex-num">41</div><div class="ex-body">
+    <h4><a href="lab/docs/exercises/41_replicated_merge_tree.html">ReplicatedMergeTree</a> <span class="ex-tag cluster">cluster</span></h4>
+    <p>One engine swap (<code>MergeTree</code> → <code>ReplicatedMergeTree</code>) buys HA plus a Keeper-backed insert-dedup window. Watch replication state, force-fetch parts, retire dead replicas.</p>
+    <p class="why"><b>After this:</b> you know exactly what <code>absolute_delay</code> and <code>queue_size</code> mean, and you'll never write a producer that retries blindly without realizing the engine already dedups identical blocks.</p>
+  </div></div>
+
+  <div class="ex"><div class="ex-num">42</div><div class="ex-body">
+    <h4><a href="lab/docs/exercises/42_distributed_sharding.html">Distributed + sharding</a> <span class="ex-tag cluster">cluster</span></h4>
+    <p>The Distributed engine is a router on top of per-shard local tables. Sharding key, fan-out aggregation, the cross-shard JOIN trap and three fixes (GLOBAL JOIN, dictionary, <code>distributed_product_mode</code>).</p>
+    <p class="why"><b>After this:</b> you can split a table across N nodes and read it as one — and you know which JOIN patterns silently break in the cluster setting (and how to use dictionaries to dodge that entirely).</p>
+  </div></div>
+
+  <div class="ex"><div class="ex-num">44</div><div class="ex-body">
+    <h4><a href="lab/docs/exercises/44_observability.html">Cluster observability</a> <span class="ex-tag cluster">cluster</span></h4>
+    <p><code>clusterAllReplicas('cluster', system.X)</code> patterns: fleet-wide query_log, finding the straggling shard via <code>initial_query_id</code>, replication-health alerts, parts-distribution drift, and the "third cluster" log-shipping pattern.</p>
+    <p class="why"><b>After this:</b> "is anything wrong across the fleet?" becomes one SQL query instead of N ssh sessions. Your Grafana dashboards become cluster-aware in one edit.</p>
+  </div></div>
+
+  <div class="ex"><div class="ex-num">45</div><div class="ex-body">
+    <h4><a href="lab/docs/exercises/45_sharded_final.html">Sharded FINAL is broken</a> <span class="ex-tag cluster">cluster</span></h4>
+    <p>ReplacingMergeTree dedups within a replica, not across shards. <code>SELECT FINAL</code> on a Distributed table silently returns duplicates. The fix is the <code>argMax</code> pattern from exercise 13, now mandatory — plus the pre-deduped MV variant for high-QPS reads.</p>
+    <p class="why"><b>After this:</b> you'll treat any <code>FINAL</code> against a Distributed table as a correctness bug, and you'll know the two patterns that replace it. This single lesson prevents a class of "wrong dashboard numbers" you may have been chasing for months.</p>
+  </div></div>
+
   <h3>Playground — apply it to a real production schema</h3>
 
   <div class="ex"><div class="ex-num">P-01</div><div class="ex-body">
@@ -582,8 +615,8 @@ query:  WHERE site_id = <span class="y">42</span> AND event_time > now() - 7d
   <h2>The runtime side of "learning ClickHouse".</h2>
 
   <pre class="diagram"><span class="b"># One-time setup</span>
-brew install colima docker docker-compose
-colima start --cpu 4 --memory 8 --disk 40
+<span class="i"># Install Docker Desktop from docker.com/products/docker-desktop</span>
+<span class="i"># Launch once, then Settings → Resources → Memory: 6 GB+ (8 GB for cluster)</span>
 
 <span class="b"># Spin up the stack</span>
 make up                 <span class="i"># ClickHouse + Grafana</span>

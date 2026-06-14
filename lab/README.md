@@ -16,11 +16,11 @@ A hands-on course in one repo. Every concept has an exercise, and every exercise
 
 ---
 
-## 0. Setup (Colima)
+## 0. Setup
 
 ```bash
-brew install colima docker docker-compose
-colima start --cpu 4 --memory 8 --disk 40
+# Install Docker Desktop, launch it once, then bump memory to 6 GB+
+# (Settings → Resources). 8 GB if you plan to use the cluster track.
 # From the repo root (clickhouse-playground/):
 make up        # or: docker compose up -d
 ```

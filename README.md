@@ -12,8 +12,9 @@ Two tracks sharing one ClickHouse + Grafana stack.
 ## Setup
 
 ```bash
-brew install colima docker docker-compose
-colima start --cpu 4 --memory 8 --disk 40
+# Install Docker Desktop (https://docs.docker.com/desktop/install/mac-install/),
+# launch it once, then in Settings → Resources bump memory to 6 GB+
+# (8 GB if you plan to use the cluster track).
 
 make up                 # ClickHouse + Grafana
 make playground-seed    # prod-replica datacapture data
@@ -38,7 +39,7 @@ make kafka-storm        # produce 50k JSON events into topic 'events'
 
 ## Cluster track (opt-in)
 
-`lab/sql/40..45` need a 2-node ClickHouse cluster + Keeper for coordination. Adds ~1.5 GB to your Colima allocation.
+`lab/sql/40..45` need a 2-node ClickHouse cluster + Keeper for coordination. Adds ~1.5 GB — bump Docker Desktop's memory limit to 8 GB first (Settings → Resources).
 
 ```bash
 make up-cluster         # ch-keeper + ch-1 + ch-2
